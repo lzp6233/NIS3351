@@ -221,10 +221,10 @@ pip install -r requirements.txt
 touch .env
 ```
 写入：
-DB_USER=
-DB_PASSWORD=
+DB_USER=your_name
+DB_PASSWORD=your_passwd
 DB_ADMIN_USER=opengauss
-DB_ADMIN_PASSWORD=
+DB_ADMIN_PASSWORD=your_admin_password
 
 **必须修改的配置**：
 
