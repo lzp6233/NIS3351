@@ -1,59 +1,57 @@
 """
-数据库操作模块（使用 psycopg3）
-支持 GaussDB 的 SCRAM-SHA-256 认证
+数据库操作模块（使用 py-opengauss）
+支持 openGauss 的 SCRAM-SHA-256 认证
 """
 
-import psycopg
+import py_opengauss
 from config import DB_CONFIG
 
 
 def get_connection():
     """
     获取数据库连接
-    使用 psycopg3，原生支持 SCRAM-SHA-256
+    使用 py-opengauss，openGauss 官方驱动
     """
-    conn_string = f"dbname={DB_CONFIG['dbname']} user={DB_CONFIG['user']} password={DB_CONFIG['password']} host={DB_CONFIG['host']} port={DB_CONFIG['port']}"
-    conn = psycopg.connect(conn_string)
+    # 构建连接字符串: opengauss://user:password@host:port/database
+    conn_string = f"opengauss://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}"
+    conn = py_opengauss.open(conn_string)
     return conn
 
 
 def insert_sensor_data(data, device_id='room1'):
     """插入温湿度传感器数据"""
     conn = get_connection()
-    cur = conn.cursor()
     try:
-        cur.execute(
-            "INSERT INTO temperature_humidity_data (device_id, temperature, humidity) VALUES (%s, %s, %s)",
-            (device_id, data["temperature"], data["humidity"])
+        stmt = conn.prepare(
+            "INSERT INTO temperature_humidity_data (device_id, temperature, humidity) VALUES ($1, $2, $3)"
         )
-        conn.commit()
+        stmt(device_id, data["temperature"], data["humidity"])
     finally:
-        cur.close()
         conn.close()
 
 
 def get_recent_data(device_id=None, limit=100):
     """获取最近的温湿度数据"""
     conn = get_connection()
-    cur = conn.cursor()
     try:
         if device_id:
-            cur.execute("""
+            stmt = conn.prepare("""
                 SELECT id, device_id, temperature, humidity, timestamp 
                 FROM temperature_humidity_data 
-                WHERE device_id = %s
+                WHERE device_id = $1
                 ORDER BY timestamp DESC 
-                LIMIT %s
-            """, (device_id, limit))
+                LIMIT $2
+            """)
+            rows = stmt(device_id, limit)
         else:
-            cur.execute("""
+            stmt = conn.prepare("""
                 SELECT id, device_id, temperature, humidity, timestamp 
                 FROM temperature_humidity_data 
                 ORDER BY timestamp DESC 
-                LIMIT %s
-            """, (limit,))
+                LIMIT $1
+            """)
+            rows = stmt(limit)
         
-        rows = cur.fetchall()
         result = []
         for row in rows:
             result.append({
@@ -65,43 +63,39 @@ def get_recent_data(device_id=None, limit=100):
             })
         return result
     finally:
-        cur.close()
         conn.close()
 
 
 def get_devices():
     """获取所有设备列表"""
     conn = get_connection()
-    cur = conn.cursor()
     try:
-        cur.execute("""
+        rows = conn.query("""
             SELECT DISTINCT device_id, COUNT(*) as count
             FROM temperature_humidity_data
             GROUP BY device_id
             ORDER BY device_id
         """)
-        rows = cur.fetchall()
         return [{'device_id': row[0], 'data_count': row[1]} for row in rows]
     finally:
-        cur.close()
         conn.close()
 
 
 def get_latest_data(device_id):
     """获取指定设备的最新数据"""
     conn = get_connection()
-    cur = conn.cursor()
     try:
-        cur.execute("""
+        stmt = conn.prepare("""
             SELECT id, device_id, temperature, humidity, timestamp 
             FROM temperature_humidity_data 
-            WHERE device_id = %s
+            WHERE device_id = $1
             ORDER BY timestamp DESC 
             LIMIT 1
-        """, (device_id,))
+        """)
         
-        row = cur.fetchone()
-        if row:
+        rows = stmt(device_id)
+        if rows:
+            row = rows[0]
             return {
                 'id': row[0],
                 'device_id': row[1],
@@ -111,6 +105,5 @@ def get_latest_data(device_id):
             }
         return None
     finally:
-        cur.close()
         conn.close()
 

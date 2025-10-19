@@ -68,7 +68,7 @@ def on_disconnect(client, userdata, rc):
 
 
 # 创建 MQTT 客户端
-client = mqtt.Client()
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
 client.on_connect = on_connect
 client.on_message = on_message
 client.on_disconnect = on_disconnect

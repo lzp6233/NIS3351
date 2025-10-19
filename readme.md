@@ -4,8 +4,53 @@
 
 ---
 
-#### 当前的问题
-+ 与GaussDB通信时的 SASL认证问题
+## 🐛 已解决的问题
+
+### 1. 虚拟环境损坏
+**问题**：多个包的 METADATA 文件丢失，导致 `pip install` 失败  
+**解决**：重建虚拟环境
+```bash
+mv venv venv_backup
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 2. openGauss SCRAM-SHA-256 认证问题
+**问题**：psycopg3 不支持 openGauss 的 SCRAM-SHA-256 认证机制  
+**解决**：切换到 openGauss 官方驱动 `py-opengauss`
+```bash
+pip install py-opengauss
+```
+
+### 3. py-opengauss API 适配
+**问题**：py-opengauss API 与 psycopg2/psycopg3 不同  
+**关键差异**：
+- 连接：`py_opengauss.open("opengauss://user:pass@host:port/db")`
+- 参数占位符：使用 `$1, $2, $3`（而非 `%s`）
+- 查询：`conn.prepare(sql)` 返回可调用的 statement
+- 无需 `cursor()`：直接使用 connection 对象
+- 无需 `commit()`：自动提交
+
+### 4. MQTT Client API 弃用
+**问题**：paho-mqtt 2.x 弃用旧 API  
+**解决**：更新为新 API
+```python
+# 旧版
+client = mqtt.Client()
+
+# 新版
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+```
+
+### 5. 网络配置问题
+**问题**：缺少默认网关，无法访问外网  
+**解决**：添加网关配置到 `/etc/sysconfig/network-scripts/ifcfg-eth0`
+```bash
+GATEWAY=192.168.10.101
+DNS1=8.8.8.8
+```
 
 
 
@@ -37,7 +82,7 @@ sudo yum install -y gcc make cmake git wget curl
 # 安装 Python 开发包
 sudo yum install -y python3 python3-devel python3-pip
 
-# 安装数据库开发库（用于 psycopg2）
+# 安装数据库开发库（用于编译 py-opengauss）
 sudo yum install -y openssl-devel libpq-devel
 
 # 安装 MQTT Broker
@@ -166,8 +211,8 @@ pip install -r requirements.txt
 - Flask 2.3.3 - Web 框架
 - Flask-SocketIO 5.5.1 - WebSocket 实时通信
 - Flask-CORS 4.0.0 - 跨域支持
-- paho-mqtt 1.6.1 - MQTT 客户端
-- psycopg2-binary 2.9.9 - PostgreSQL/GaussDB 驱动
+- paho-mqtt 2.1.0 - MQTT 客户端
+- py-opengauss 1.3.10 - openGauss 官方驱动（支持 SCRAM-SHA-256 认证）
 - python-dotenv 1.0.0 - 环境变量管理
 
 ### 4. 配置环境变量

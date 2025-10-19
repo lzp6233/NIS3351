@@ -4,6 +4,7 @@ env/
 ENV/
 *.pyc
 __pycache__/
+venv_old_backup
 
 # IDE
 .vscode/
