@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智能门锁控制 - 智能家居</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", sans-serif;
+      background: linear-gradient(135deg, #e8f0fe, #fdf6f0);
+      background-image: url('https://cdn.pixabay.com/photo/2017/08/30/01/05/interior-2696153_1280.jpg');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: #333;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(255, 255, 255, 0.6);
+      z-index: 0;
+    }
+
+    /* 增大容器宽度并居中 */
+    .lock-wrapper {
+      width: 90%;
+      max-width: 1100px; /* ⬅ 扩大宽度 */
+      background: rgba(255, 255, 255, 0.88);
+      border-radius: 20px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+      padding: 40px 50px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+      z-index: 1;
+      position: relative;
+    }
+
+    h1 {
+      color: #2b4a8a;
+      margin-bottom: 10px;
+      font-size: 1.9em;
+    }
+
+    p.subtitle {
+      color: #555;
+      margin-bottom: 30px;
+      font-size: 1.05em;
+    }
+
+    /* ✅ 让4个卡片强制同一行展示 */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr); /* 固定为4列 */
+      gap: 25px;
+      margin-bottom: 30px;
+    }
+
+    .info-card {
+      background: #f9fafc;
+      border-radius: 14px;
+      padding: 20px 10px;
+      text-align: center;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .info-label {
+      color: #666;
+      font-size: 0.9em;
+    }
+
+    .info-value {
+      color: #2b4a8a;
+      font-size: 1.25em;
+      font-weight: 600;
+    }
+
+    .lock-actions {
+      margin-top: 15px;
+      display: flex;
+      justify-content: center;
+      gap: 25px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 12px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: white;
+    }
+
+    .btn-lock {
+      background-color: #dc3545;
+    }
+
+    .btn-unlock {
+      background-color: #28a745;
+    }
+
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+    }
+
+    .form-section {
+      margin-top: 30px;
+      text-align: left;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #444;
+      font-weight: 500;
+    }
+
+    select,
+    input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 2px solid #ddd;
+      transition: 0.3s;
+      margin-bottom: 18px;
+      font-size: 0.95em;
+    }
+
+    select:focus,
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .back-btn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      padding: 10px 20px;
+      background: rgba(43, 74, 138, 0.9);
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: 0.3s;
+      z-index: 2;
+    }
+
+    .back-btn:hover {
+      background: #2b4a8a;
+      transform: translateY(-2px);
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 25px;
+      font-size: 0.9em;
+      color: #666;
+      z-index: 1;
+    }
+
+    /* 响应式处理 */
+    @media (max-width: 900px) {
+      .info-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay"></div>
+
+  <a href="index.html" class="back-btn">← 返回主页</a>
+  <div class="lock-wrapper">
+    <h1>🚪 智能门锁控制</h1>
+    <p class="subtitle">远程控制、状态监测与家庭安全守护</p>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-label">锁ID</div>
+        <div class="info-value" id="lockId">front_door</div>
+      </div>
+      <div class="info-card">
+        <div class="info-label">状态</div>
+        <div class="info-value" id="lockStatus">--</div>
+      </div>
+      <div class="info-card">
+        <div class="info-label">电量</div>
+        <div class="info-value" id="lockBattery">--</div>
+      </div>
+      <div class="info-card">
+        <div class="info-label">更新时间</div>
+        <div class="info-value" id="lockUpdated">--</div>
+      </div>
+    </div>
+
+    <div class="lock-actions">
+      <button id="btnLock" class="btn btn-lock">🔒 上锁</button>
+      <button id="btnUnlock" class="btn btn-unlock">🔓 解锁</button>
+    </div>
+
+    <div class="form-section">
+      <label for="unlockMethod">开锁方式</label>
+      <select id="unlockMethod">
+        <option value="PINCODE">PINCODE</option>
+        <option value="APP">APP</option>
+        <option value="FINGERPRINT">FINGERPRINT</option>
+        <option value="REMOTE">REMOTE</option>
+      </select>
+
+      <label for="actorInput">操作用户</label>
+      <input type="text" id="actorInput" placeholder="请输入用户名称">
+
+      <label for="pinInput">PIN码</label>
+      <input type="password" id="pinInput" placeholder="如需PINCODE方式请填写">
+    </div>
+  </div>
+
+  <footer>智能家居系统 v2.1 | 门锁模块</footer>
+
+  <script src="door-lock.js"></script>
+</body>
+</html>

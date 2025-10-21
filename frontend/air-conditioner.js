@@ -1,4 +1,3 @@
-
 // API 基础地址
 const API_BASE = 'http://localhost:5000';
 
@@ -135,6 +134,9 @@ async function loadHistory(deviceId = 'all') {
         document.getElementById('currentHum').textContent = `${latest.humidity}%`;
         document.getElementById('dataCount').textContent = data.length;
         
+        // 计算舒适指数
+        updateComfortIndex(latest.temperature, latest.humidity);
+        
         updateStatus('数据加载成功', 'success');
         
     } catch (error) {
@@ -143,11 +145,51 @@ async function loadHistory(deviceId = 'all') {
     }
 }
 
+// 更新舒适指数
+function updateComfortIndex(temp, hum) {
+    let comfortLevel = '舒适';
+    let comfortColor = '#28a745';
+    
+    if (temp > 28 || temp < 16) {
+        comfortLevel = '不舒适';
+        comfortColor = '#dc3545';
+    } else if (hum > 80 || hum < 30) {
+        comfortLevel = '一般';
+        comfortColor = '#ffc107';
+    }
+    
+    document.getElementById('comfortIndex').textContent = comfortLevel;
+    document.getElementById('comfortIndex').style.color = comfortColor;
+}
+
 // 更新状态显示
 function updateStatus(message, type = 'info') {
     const statusEl = document.getElementById('status');
     statusEl.textContent = message;
     statusEl.className = `status status-${type}`;
+}
+
+// 空调控制
+function setupACControls() {
+    const acButtons = document.querySelectorAll('.ac-btn');
+    const acStatus = document.getElementById('acStatus');
+    
+    acButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            if (button.id === 'acOff') {
+                acStatus.textContent = '已关闭';
+                acStatus.style.color = '#dc3545';
+                updateStatus('空调已关闭', 'success');
+            } else {
+                const temp = button.getAttribute('data-temp');
+                acStatus.textContent = `运行中 (${temp}°C)`;
+                acStatus.style.color = '#28a745';
+                updateStatus(`空调已设置为 ${temp}°C`, 'success');
+            }
+            
+            // 这里可以添加实际的空调控制API调用
+        });
+    });
 }
 
 // 事件监听
@@ -158,11 +200,6 @@ document.getElementById('deviceSelect').addEventListener('change', (e) => {
 
 document.getElementById('refreshBtn').addEventListener('click', () => {
     loadHistory(currentDevice);
-});
-
-// 跳转到门锁页面
-document.getElementById('doorLockBtn').addEventListener('click', () => {
-    window.location.href = 'door-lock.html';
 });
 
 // 自动刷新（每10秒）
@@ -178,3 +215,4 @@ window.addEventListener('resize', () => {
 // 初始化
 loadDevices();
 loadHistory();
+setupACControls();

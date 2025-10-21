@@ -1,43 +1,144 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能家居监控系统</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能家居控制系统</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", sans-serif;
+      background: linear-gradient(135deg, #e8f0fe, #fdf6f0);
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      backdrop-filter: blur(6px);
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(255, 255, 255, 0.6);
+      z-index: 0;
+    }
+
+    header {
+      text-align: center;
+      margin-top: 80px;
+      z-index: 1;
+    }
+
+    header h1 {
+      font-size: 2.6em;
+      color: #2b4a8a;
+      margin-bottom: 10px;
+    }
+
+    header p {
+      font-size: 1.1em;
+      color: #555;
+      letter-spacing: 0.5px;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 30px;
+      margin-top: 80px;
+      width: 80%;
+      max-width: 900px;
+      z-index: 1;
+    }
+
+    .home-button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 25px;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+    }
+
+    .home-button:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .home-button img {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 15px;
+    }
+
+    .home-button h3 {
+      color: #2b4a8a;
+      font-size: 1.3em;
+      margin: 5px 0;
+    }
+
+    .home-button p {
+      font-size: 0.95em;
+      color: #666;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: auto;
+      margin-bottom: 30px;
+      font-size: 0.9em;
+      color: #777;
+      z-index: 1;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🏠 智能家居温湿度监控系统</h1>
-        
-        <div class="controls">
-            <label for="deviceSelect">选择设备：</label>
-            <select id="deviceSelect">
-                <option value="all">所有设备</option>
-            </select>
-            <button id="refreshBtn">刷新数据</button>
-            <span id="status" class="status">正在加载...</span>
-        </div>
-        
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-label">当前温度</div>
-                <div class="stat-value" id="currentTemp">--</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">当前湿度</div>
-                <div class="stat-value" id="currentHum">--</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">数据点数</div>
-                <div class="stat-value" id="dataCount">0</div>
-            </div>
-        </div>
-        
-        <div id="chart" style="width:100%;height:500px;"></div>
-    </div>
+  <div class="overlay"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
-    <script src="main.js"></script>
+  <header>
+    <h1>🏠 智能家居控制系统</h1>
+    <p>让科技与生活完美融合 · 随时随地掌控您的家</p>
+  </header>
+
+  <div class="button-grid">
+    <a href="air-conditioner.html" class="home-button">
+      <p style="font-size: 3em;">❄️</p>
+      <h3>空调与环境</h3>
+      <p>智能调节温湿度，打造舒适家居环境</p>
+    </a>
+
+    <a href="lights.html" class="home-button">
+      <p style="font-size: 3em;">💡</p>
+      <h3>智能灯具</h3>
+      <p>灯光控制与场景联动，让家更温馨</p>
+    </a>
+
+    <a href="door-lock.html" class="home-button">
+      <p style="font-size: 3em;">🔒</p>
+      <h3>智能门锁</h3>
+      <p>远程开锁与安全防护，出行更安心</p>
+    </a>
+
+    <a href="fire-alarm.html" class="home-button">
+      <p style="font-size: 3em;">🚨</p>
+      <h3>消防报警</h3>
+      <p>实时火灾预警，守护家庭安全</p>
+    </a>
+  </div>
+
+  <footer>
+    智能家居系统 v2.1 | 版权所有 © 2025
+  </footer>
 </body>
 </html>
