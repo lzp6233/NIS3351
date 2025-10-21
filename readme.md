@@ -57,7 +57,7 @@ DNS1=8.8.8.8
 ## 📋 系统架构
 
 ```
-传感器模拟器 → MQTT Broker → MQTT 客户端 → GaussDB 数据库
+传感器模拟器/门锁模拟器 → MQTT Broker → MQTT 客户端 → GaussDB 数据库
                                     ↓
                             Flask Web 服务器
                                     ↓
@@ -91,7 +91,38 @@ sudo yum install -y mosquitto
 
 ### 2. GaussDB / openGauss 数据库
 
-#### 安装 GaussDB（如果未安装，默认已经安装）
+#### 在 macOS 上使用 Docker 启动 openGauss（推荐）
+
+先安装 Docker Desktop，然后在项目根目录执行：
+
+```bash
+docker compose up -d opengauss
+# 首次启动等待健康检查通过（约 30-60 秒）
+```
+
+容器信息：
+- 映射端口：本机 7654 -> 容器 5432（已与项目默认配置一致）
+- 管理员用户：`gaussdb`（镜像默认）
+- 管理员密码：`StrongPassw0rd!`
+
+配置 .env（示例）：
+```bash
+DB_HOST=127.0.0.1
+DB_PORT=7654
+DB_NAME=smart_home
+DB_ADMIN_USER=gaussdb
+DB_ADMIN_PASSWORD=StrongPassw0rd!
+DB_USER=app_user
+DB_PASSWORD=app_password
+```
+
+准备就绪后，执行初始化脚本：
+
+```bash
+./setup_database.sh
+```
+
+#### 在华为鲲鹏板上原生部署 openGauss（无 Docker）
 
 参考官方文档：https://opengauss.org/zh/download/
 
@@ -137,7 +168,17 @@ gs_ctl start -D /var/lib/opengauss/data
 ps -ef | grep gaussdb
 ```
 
-### 3. MQTT Broker（Mosquitto）
+> 完成数据库安装后，按 `.env` 中的参数执行 `./setup_database.sh` 初始化表结构与示例数据（已包含门锁表）。
+
+### 3. 本地开发数据库选择
+
+默认使用 sqlite（零依赖）：
+
+- 已将 `backend/config.py` 的默认 `DB_TYPE` 设为 `sqlite`，无需安装 openGauss 即可运行；
+- 首次运行会自动创建所需表（含门锁表），无需执行 `init_db.sql`；
+- 若你需要切换到 openGauss（如在鲲鹏板上或本机 Docker），将 `.env` 中 `DB_TYPE=opengauss` 并按照上文安装步骤执行 `./setup_database.sh` 即可。
+
+### 4. MQTT Broker（Mosquitto）
 
 #### 安装 Mosquitto
 
@@ -276,6 +317,7 @@ sh run.sh
 - MQTT 客户端（后台）
 - Flask Web 服务器（端口 5000）
 - 传感器模拟器（后台）
+- 门锁模拟器（后台）
 - 前端 HTTP 服务器（端口 8000）
 
 ### 手动启动（逐个启动）
@@ -325,6 +367,30 @@ pkill -f 'python.*backend|python.*simulator|http.server'
 | GET | `/history` | 获取所有历史数据 |
 | GET | `/history/<device_id>` | 获取指定设备历史数据 |
 | GET | `/latest/<device_id>` | 获取指定设备最新数据 |
+
+### 门锁 API（front_door）
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/locks` | 列出所有门锁状态 |
+| GET | `/locks/front_door/state` | 获取门锁当前状态（LOCKED/UNLOCKED、method、actor、battery） |
+| GET | `/locks/front_door/events?limit=50` | 获取门锁最近事件 |
+| POST | `/locks/front_door/command` | 下发命令，body: `{ "action": "lock|unlock", "method": "PINCODE|APP|FINGERPRINT|REMOTE|KEY", "actor": "Dad", "pin": "1234" }` |
+
+示例：
+```bash
+# 获取门锁状态
+curl http://localhost:5000/locks/front_door/state
+
+# 解锁（PINCODE）
+curl -X POST http://localhost:5000/locks/front_door/command \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"unlock","method":"PINCODE","actor":"Dad","pin":"1234"}'
+
+# 上锁
+curl -X POST http://localhost:5000/locks/front_door/command \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"lock","method":"APP","actor":"Dad"}'
+```
 
 **示例**：
 ```bash
