@@ -60,8 +60,44 @@ SELECT * FROM temperature_humidity_data
 ORDER BY timestamp DESC 
 LIMIT 10;
 
+-- 9. 智慧门锁：单把大门锁的表结构
+SELECT 'Creating tables for smart lock...' AS status;
+
+-- 当前锁状态表
+CREATE TABLE IF NOT EXISTS lock_state (
+    lock_id VARCHAR(50) PRIMARY KEY,
+    locked BOOLEAN NOT NULL,
+    method VARCHAR(20),                 -- 开锁方式：PINCODE/FINGERPRINT/APP/REMOTE/KEY
+    actor VARCHAR(64),                  -- 操作用户：如 Dad, Guest_123
+    battery INTEGER DEFAULT 100,        -- 电量百分比
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 锁事件流水表（审计）
+CREATE TABLE IF NOT EXISTS lock_events (
+    id SERIAL PRIMARY KEY,
+    lock_id VARCHAR(50) NOT NULL,
+    event_type VARCHAR(32) NOT NULL,    -- lock/unlock/unlock_success/unlock_fail/tamper/etc
+    method VARCHAR(20),                 -- 使用方式
+    actor VARCHAR(64),                  -- 操作人
+    detail TEXT,                        -- 其他信息
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_lock_events_lock_time
+ON lock_events(lock_id, timestamp DESC);
+
+-- 初始化一把大门锁的状态
+INSERT INTO lock_state (lock_id, locked, method, actor, battery)
+VALUES ('FRONT_DOOR', TRUE, NULL, NULL, 100)
+ON CONFLICT (lock_id) DO NOTHING;
+
+-- 插入示例事件
+INSERT INTO lock_events (lock_id, event_type, method, actor, detail)
+VALUES ('FRONT_DOOR', 'INIT', NULL, NULL, 'Initialized with LOCKED=TRUE');
+
 -- 完成提示
 SELECT '✓ Database initialization completed!' AS status;
 SELECT 'Database: smart_home' AS info;
-SELECT 'Table: temperature_humidity_data' AS info;
+SELECT 'Table: temperature_humidity_data, lock_state, lock_events' AS info;
 SELECT COUNT(*) || ' test records inserted' AS info FROM temperature_humidity_data;
