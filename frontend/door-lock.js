@@ -20,7 +20,14 @@ function updateLockStatusDisplay(lockData) {
 // 加载锁状态
 async function loadLockState() {
     try {
-        const res = await fetch(`${API_BASE}/locks/${LOCK_ID}/state`);
+        const res = await fetch(`${API_BASE}/locks/${LOCK_ID}/state?_t=${Date.now()}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            cache: 'no-cache'
+        });
         if (!res.ok) throw new Error('锁状态获取失败');
         const lockData = await res.json();
         updateLockStatusDisplay(lockData);

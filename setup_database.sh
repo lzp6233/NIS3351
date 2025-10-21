@@ -11,9 +11,12 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# 获取脚本所在目录
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR"
+# 获取脚本所在目录（兼容 sh 和 bash）
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR" || {
+    echo "错误：无法切换到脚本所在目录"
+    exit 1
+}
 
 echo -e "${GREEN}========================================"
 echo "NIS3351 数据库初始化"
@@ -30,7 +33,7 @@ if [ ! -f ".env" ]; then
     echo ""
     read -p "是否现在创建 .env 文件? (y/n): " create_env
     
-    if [[ "$create_env" =~ ^[Yy]$ ]]; then
+    if [ "$create_env" = "y" ] || [ "$create_env" = "Y" ]; then
         cp .env.example .env
         echo -e "${GREEN}✓ 已创建 .env 文件${NC}"
         echo "请编辑 .env 文件后重新运行此脚本"
@@ -44,10 +47,17 @@ fi
 
 # 加载 .env 文件
 echo -e "${YELLOW}加载配置文件...${NC}"
-set -a
-source .env
-set +a
-echo -e "${GREEN}✓ 配置已加载${NC}"
+if [ -f ".env" ]; then
+    set -a
+    . ./.env
+    set +a
+    echo -e "${GREEN}✓ 配置已加载${NC}"
+else
+    echo -e "${RED}✗ 错误：.env 文件不存在${NC}"
+    echo "当前目录: $(pwd)"
+    echo "请确保在项目根目录下运行此脚本"
+    exit 1
+fi
 
 # 显示配置信息（隐藏密码）
 echo ""
@@ -79,7 +89,7 @@ fi
 echo -e "${YELLOW}步骤 1/3: 测试数据库连接...${NC}"
 export PGPASSWORD="${DB_ADMIN_PASSWORD}"
 
-if gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -c "SELECT version();" > /dev/null 2>&1; then
+if gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -W "${DB_ADMIN_PASSWORD}" -c "SELECT version();" > /dev/null 2>&1; then
     echo -e "${GREEN}✓ 数据库连接成功${NC}"
 else
     echo -e "${RED}✗ 数据库连接失败${NC}"
@@ -89,14 +99,14 @@ else
     echo "  3. 端口是否正确（${DB_PORT}）"
     echo ""
     echo "手动连接测试："
-    echo "  gsql -d postgres -h ${DB_HOST} -p ${DB_PORT} -U ${DB_ADMIN_USER}"
+    echo "  gsql -d postgres -h ${DB_HOST} -p ${DB_PORT} -U ${DB_ADMIN_USER} -W ${DB_ADMIN_PASSWORD}"
     unset PGPASSWORD
     exit 1
 fi
 
 echo ""
 echo -e "${YELLOW}步骤 2/3: 创建数据库和表...${NC}"
-if gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -f init_db.sql 2>&1 | grep -v "already exists"; then
+if gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -W "${DB_ADMIN_PASSWORD}" -f init_db.sql 2>&1 | grep -v "already exists"; then
     echo -e "${GREEN}✓ 数据库和表创建成功${NC}"
 else
     echo -e "${YELLOW}⚠ 数据库可能已存在${NC}"
@@ -106,7 +116,7 @@ echo ""
 echo -e "${YELLOW}步骤 3/3: 配置用户权限...${NC}"
 
 # 创建应用用户（如果不存在）
-gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" << EOF > /dev/null 2>&1
+gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -W "${DB_ADMIN_PASSWORD}" << EOF > /dev/null 2>&1
 DO \$\$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = '${DB_USER}') THEN
@@ -143,4 +153,4 @@ echo "  1. 配置已自动从 .env 文件读取"
 echo "  2. 启动系统: ./run.sh"
 echo ""
 echo "测试连接："
-echo "  gsql -d ${DB_NAME} -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER}"
+echo "  gsql -d ${DB_NAME} -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -W <password>"

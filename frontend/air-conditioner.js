@@ -79,8 +79,33 @@ chart.setOption(option);
 // 加载设备列表
 async function loadDevices() {
     try {
-        const response = await fetch(`${API_BASE}/devices`);
+        console.log('正在请求设备列表:', `${API_BASE}/devices`);
+        console.log('当前页面 Origin:', window.location.origin);
+        
+        // 添加详细的请求配置和调试信息
+        const requestOptions = {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            mode: 'cors', // 明确指定 CORS 模式
+            credentials: 'omit' // 不发送凭据
+        };
+        
+        console.log('请求配置:', requestOptions);
+        // 添加时间戳避免缓存
+        const url = `${API_BASE}/devices?_t=${Date.now()}`;
+        const response = await fetch(url, requestOptions);
+        console.log('响应状态:', response.status, response.statusText);
+        console.log('响应头:', [...response.headers.entries()]);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const devices = await response.json();
+        console.log('获取到设备数据:', devices);
         
         const select = document.getElementById('deviceSelect');
         select.innerHTML = '<option value="all">所有设备</option>';
@@ -91,9 +116,12 @@ async function loadDevices() {
             option.textContent = `${device.device_id} (${device.data_count} 条数据)`;
             select.appendChild(option);
         });
+        
+        updateStatus('设备列表加载成功', 'success');
     } catch (error) {
         console.error('加载设备列表失败:', error);
-        updateStatus('加载设备失败', 'error');
+        console.error('错误详情:', error.message);
+        updateStatus(`加载设备失败: ${error.message}`, 'error');
     }
 }
 
@@ -102,12 +130,35 @@ async function loadHistory(deviceId = 'all') {
     try {
         updateStatus('加载中...', 'loading');
         
-        const url = deviceId === 'all' 
+        const baseUrl = deviceId === 'all' 
             ? `${API_BASE}/history?limit=50`
             : `${API_BASE}/history/${deviceId}?limit=50`;
         
-        const response = await fetch(url);
+        // 添加时间戳避免缓存
+        const url = baseUrl + (baseUrl.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
+        
+        console.log('正在请求历史数据:', url);
+        
+        const requestOptions = {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            mode: 'cors',
+            credentials: 'omit'
+        };
+        
+        const response = await fetch(url, requestOptions);
+        console.log('历史数据响应状态:', response.status, response.statusText);
+        console.log('历史数据响应头:', [...response.headers.entries()]);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
+        console.log('获取到历史数据:', data.length, '条记录');
         
         if (data.length === 0) {
             updateStatus('暂无数据', 'warning');
@@ -141,7 +192,8 @@ async function loadHistory(deviceId = 'all') {
         
     } catch (error) {
         console.error('加载数据失败:', error);
-        updateStatus('加载数据失败', 'error');
+        console.error('错误详情:', error.message);
+        updateStatus(`加载数据失败: ${error.message}`, 'error');
     }
 }
 

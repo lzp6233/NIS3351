@@ -14,8 +14,40 @@ from config import FLASK_HOST, FLASK_PORT
 from mqtt_client import publish_lock_command
 
 app = Flask(__name__)
-CORS(app)  # 允许跨域请求
+
+# 配置 CORS 以允许来自前端的请求
+# 开发环境设置 max_age=0 避免浏览器缓存 CORS 预检请求
+CORS(app, 
+     resources={r"/*": {"origins": "*"}},
+     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     supports_credentials=False,
+     max_age=0)
+
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# 添加响应头处理器以确保 CORS 头始终存在
+@app.after_request
+def after_request(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Accept,Origin,X-Requested-With'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
+    response.headers['Access-Control-Max-Age'] = '0'  # 开发环境禁用缓存
+    print(f"[CORS] {request.method} {request.path} - Origin: {request.headers.get('Origin')} - Status: {response.status_code}")
+    return response
+
+
+# 添加 OPTIONS 处理
+@app.before_request
+def handle_options():
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Accept,Origin,X-Requested-With'
+        response.headers['Access-Control-Max-Age'] = '0'  # 开发环境禁用缓存
+        print(f"[CORS-OPTIONS] {request.path} - Origin: {request.headers.get('Origin')}")
+        return response
 
 
 @app.route("/")
@@ -32,9 +64,10 @@ def index():
     })
 
 
-@app.route("/devices")
+@app.route("/devices", methods=["GET"])
 def devices():
     """获取所有设备列表"""
+    print(f"收到设备列表请求 - Method: {request.method}, Origin: {request.headers.get('Origin')}")
     data = get_devices()
     return jsonify(data)
 

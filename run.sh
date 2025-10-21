@@ -3,10 +3,7 @@
 # 激活虚拟环境
 source venv/bin/activate
 
-# 启动后端 MQTT 客户端
-python backend/mqtt_client.py &
-
-# 启动 Flask 服务器
+# 启动 Flask 服务器（会自动启动 MQTT 客户端）
 python backend/app.py &
 
 # 启动传感器模拟器

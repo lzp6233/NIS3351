@@ -80,7 +80,14 @@ chart.setOption(option);
 // 加载设备列表
 async function loadDevices() {
     try {
-        const response = await fetch(`${API_BASE}/devices`);
+        const response = await fetch(`${API_BASE}/devices?_t=${Date.now()}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            cache: 'no-cache'
+        });
         const devices = await response.json();
         
         const select = document.getElementById('deviceSelect');
@@ -104,10 +111,17 @@ async function loadHistory(deviceId = 'all') {
         updateStatus('加载中...', 'loading');
         
         const url = deviceId === 'all' 
-            ? `${API_BASE}/history?limit=50`
-            : `${API_BASE}/history/${deviceId}?limit=50`;
+            ? `${API_BASE}/history?limit=50&_t=${Date.now()}`
+            : `${API_BASE}/history/${deviceId}?limit=50&_t=${Date.now()}`;
         
-        const response = await fetch(url);
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            cache: 'no-cache'
+        });
         const data = await response.json();
         
         if (data.length === 0) {

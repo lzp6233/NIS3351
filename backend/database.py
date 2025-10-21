@@ -237,19 +237,48 @@ def upsert_lock_state(lock_id, locked, method=None, actor=None, battery=None, ts
             conn.commit()
             return True
 
-        # openGauss
-        # openGauss 兼容 ON CONFLICT 的 upsert 写法（若版本不支持，可改为先UPDATE受影响行数判断再INSERT）
-        stmt = conn.prepare("""
-            INSERT INTO lock_state (lock_id, locked, method, actor, battery, updated_at)
-            VALUES ($1, $2, $3, $4, COALESCE($5, 100), COALESCE($6, CURRENT_TIMESTAMP))
-            ON CONFLICT (lock_id) DO UPDATE SET
-                locked = EXCLUDED.locked,
-                method = EXCLUDED.method,
-                actor = EXCLUDED.actor,
-                battery = EXCLUDED.battery,
-                updated_at = EXCLUDED.updated_at
-        """)
-        stmt(lock_id, bool(locked), method, actor, battery, ts)
+        # openGauss - 使用 MERGE 语句替代 ON CONFLICT，处理时间戳类型转换
+        try:
+            # 处理时间戳参数 - 如果已经是字符串则直接使用，否则转换为字符串格式
+            if isinstance(ts, str):
+                ts_str = ts
+            elif ts is not None:
+                ts_str = ts.isoformat()
+            else:
+                ts_str = None
+            
+            # 先尝试更新
+            update_stmt = conn.prepare("""
+                UPDATE lock_state 
+                SET locked = $2, method = $3, actor = $4, battery = COALESCE($5, 100), 
+                    updated_at = COALESCE($6::text::timestamp, CURRENT_TIMESTAMP)
+                WHERE lock_id = $1
+            """)
+            result = update_stmt(lock_id, bool(locked), method, actor, battery, ts_str)
+            
+            # 如果没有更新任何行，则插入新行
+            if result.rowcount == 0:
+                insert_stmt = conn.prepare("""
+                    INSERT INTO lock_state (lock_id, locked, method, actor, battery, updated_at)
+                    VALUES ($1, $2, $3, $4, COALESCE($5, 100), COALESCE($6::text::timestamp, CURRENT_TIMESTAMP))
+                """)
+                insert_stmt(lock_id, bool(locked), method, actor, battery, ts_str)
+        except Exception as e:
+            # 如果插入失败（可能是并发插入），再次尝试更新
+            if isinstance(ts, str):
+                ts_str = ts
+            elif ts is not None:
+                ts_str = ts.isoformat()
+            else:
+                ts_str = None
+            update_stmt = conn.prepare("""
+                UPDATE lock_state 
+                SET locked = $2, method = $3, actor = $4, battery = COALESCE($5, 100), 
+                    updated_at = COALESCE($6::text::timestamp, CURRENT_TIMESTAMP)
+                WHERE lock_id = $1
+            """)
+            update_stmt(lock_id, bool(locked), method, actor, battery, ts_str)
+        
         return True
     finally:
         conn.close()
