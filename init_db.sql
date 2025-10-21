@@ -87,17 +87,71 @@ CREATE TABLE IF NOT EXISTS lock_events (
 CREATE INDEX IF NOT EXISTS idx_lock_events_lock_time
 ON lock_events(lock_id, timestamp DESC);
 
--- 初始化一把大门锁的状态
-INSERT INTO lock_state (lock_id, locked, method, actor, battery)
-VALUES ('FRONT_DOOR', TRUE, NULL, NULL, 100)
-ON CONFLICT (lock_id) DO NOTHING;
+-- 初始化一把大门锁的状态（仅在不存在时插入）
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM lock_state WHERE lock_id = 'FRONT_DOOR') THEN
+        INSERT INTO lock_state (lock_id, locked, method, actor, battery)
+        VALUES ('FRONT_DOOR', TRUE, NULL, NULL, 100);
+    END IF;
+END $$;
 
 -- 插入示例事件
 INSERT INTO lock_events (lock_id, event_type, method, actor, detail)
 VALUES ('FRONT_DOOR', 'INIT', NULL, NULL, 'Initialized with LOCKED=TRUE');
 
+-- 10. 空调控制：智能空调表结构
+SELECT 'Creating tables for air conditioner...' AS status;
+
+-- 空调状态表
+CREATE TABLE IF NOT EXISTS ac_state (
+    ac_id VARCHAR(50) PRIMARY KEY,
+    device_id VARCHAR(50) NOT NULL,
+    power BOOLEAN DEFAULT false,
+    mode VARCHAR(20) DEFAULT 'cool',        -- cool/heat/fan/dehumidify
+    target_temp FLOAT DEFAULT 26.0,
+    current_temp FLOAT,
+    current_humidity FLOAT,
+    fan_speed VARCHAR(20) DEFAULT 'auto',   -- auto/low/medium/high
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 空调事件表（操作历史）
+CREATE TABLE IF NOT EXISTS ac_events (
+    id SERIAL PRIMARY KEY,
+    ac_id VARCHAR(50) NOT NULL,
+    event_type VARCHAR(32) NOT NULL,        -- power_on/power_off/temp_change/mode_change
+    old_value TEXT,
+    new_value TEXT,
+    detail TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ac_events_ac_time
+ON ac_events(ac_id, timestamp DESC);
+
+-- 初始化空调状态（为每个房间创建一个空调，仅在不存在时插入）
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM ac_state WHERE ac_id = 'ac_room1') THEN
+        INSERT INTO ac_state (ac_id, device_id, power, mode, target_temp, fan_speed)
+        VALUES ('ac_room1', 'room1', false, 'cool', 26.0, 'auto');
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM ac_state WHERE ac_id = 'ac_room2') THEN
+        INSERT INTO ac_state (ac_id, device_id, power, mode, target_temp, fan_speed)
+        VALUES ('ac_room2', 'room2', false, 'cool', 26.0, 'auto');
+    END IF;
+END $$;
+
+-- 插入初始化事件
+INSERT INTO ac_events (ac_id, event_type, detail)
+VALUES 
+    ('ac_room1', 'INIT', 'Air conditioner initialized'),
+    ('ac_room2', 'INIT', 'Air conditioner initialized');
+
 -- 完成提示
 SELECT '✓ Database initialization completed!' AS status;
 SELECT 'Database: smart_home' AS info;
-SELECT 'Table: temperature_humidity_data, lock_state, lock_events' AS info;
+SELECT 'Tables: temperature_humidity_data, lock_state, lock_events, ac_state, ac_events' AS info;
 SELECT COUNT(*) || ' test records inserted' AS info FROM temperature_humidity_data;

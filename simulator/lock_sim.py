@@ -8,10 +8,17 @@
 import time
 import json
 import random
+import sys
+import os
 from datetime import datetime
 import paho.mqtt.client as mqtt
 
-# 简化配置：使用与 sensor_sim 相同的 broker 配置
+# 添加 backend 路径以导入配置
+current_dir = os.path.dirname(__file__)
+backend_dir = os.path.join(current_dir, '..', 'backend')
+sys.path.insert(0, backend_dir)
+
+# 从统一的配置文件导入
 from config import MQTT_BROKER, MQTT_PORT
 
 LOCK_ID = 'FRONT_DOOR'

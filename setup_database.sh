@@ -105,7 +105,7 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}步骤 2/3: 创建数据库和表...${NC}"
+echo -e "${YELLOW}步骤 2/4: 创建数据库和表...${NC}"
 if gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -W "${DB_ADMIN_PASSWORD}" -f init_db.sql 2>&1 | grep -v "already exists"; then
     echo -e "${GREEN}✓ 数据库和表创建成功${NC}"
 else
@@ -113,7 +113,7 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}步骤 3/3: 配置用户权限...${NC}"
+echo -e "${YELLOW}步骤 3/4: 配置用户权限...${NC}"
 
 # 创建应用用户（如果不存在）
 gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -W "${DB_ADMIN_PASSWORD}" << EOF > /dev/null 2>&1
@@ -133,6 +133,29 @@ EOF
 
 echo -e "${GREEN}✓ 用户权限配置完成${NC}"
 
+echo ""
+echo -e "${YELLOW}步骤 4/4: 初始化应用数据...${NC}"
+
+# 检查 Python 虚拟环境
+if [ ! -d "venv" ]; then
+    echo -e "${YELLOW}⚠ 未找到 Python 虚拟环境，正在创建...${NC}"
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt > /dev/null 2>&1
+    echo -e "${GREEN}✓ 虚拟环境创建完成${NC}"
+else
+    source venv/bin/activate
+fi
+
+# 运行初始化脚本
+echo -e "${YELLOW}正在初始化空调数据...${NC}"
+if python init_ac.py > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ 空调数据初始化成功${NC}"
+else
+    echo -e "${RED}✗ 空调数据初始化失败${NC}"
+    echo "请手动运行: python init_ac.py"
+fi
+
 # 清理密码环境变量
 unset PGPASSWORD
 
@@ -146,11 +169,21 @@ echo "  主机: ${DB_HOST}"
 echo "  端口: ${DB_PORT}"
 echo "  数据库: ${DB_NAME}"
 echo "  用户: ${DB_USER}"
-echo "  表: temperature_humidity_data"
+echo ""
+echo "已创建的表："
+echo "  - temperature_humidity_data (温湿度数据)"
+echo "  - lock_state (门锁状态)"
+echo "  - lock_events (门锁事件)"
+echo "  - ac_state (空调状态)"
+echo "  - ac_events (空调事件)"
+echo ""
+echo "已初始化的数据："
+echo "  - 空调: ac_room1, ac_room2"
+echo "  - 门锁: FRONT_DOOR"
 echo ""
 echo "下一步："
-echo "  1. 配置已自动从 .env 文件读取"
-echo "  2. 启动系统: ./run.sh"
+echo "  1. 启动系统: sh run.sh"
+echo "  2. 访问前端: http://localhost:8000"
 echo ""
 echo "测试连接："
 echo "  gsql -d ${DB_NAME} -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -W <password>"

@@ -1,6 +1,12 @@
-# NIS3351 智能家居监控系统
+# NIS3351 智慧家居系统
 
-基于 IoT 技术的温湿度实时监控系统，支持多设备、多传感器，实时数据采集与可视化。
+一个基于 Flask + MQTT + openGauss 的智慧家居监控系统，支持温湿度监控、空调控制和智能门锁管理。
+
+## 📋 功能模块
+
+- **温湿度监控**：实时监控各房间的温度和湿度数据
+- **空调控制**：远程控制空调开关和目标温度，模拟器会根据设置智能调节温度
+- **智能门锁**：门锁状态监控和远程控制
 
 ---
 
@@ -54,14 +60,40 @@ DNS1=8.8.8.8
 
 
 
-## 📋 系统架构
+## 🏗️ 系统架构
 
 ```
-传感器模拟器/门锁模拟器 → MQTT Broker → MQTT 客户端 → GaussDB 数据库
-                                    ↓
-                            Flask Web 服务器
-                                    ↓
-                            前端界面（ECharts）
+NIS3351/
+├── backend/           # Flask 后端
+│   ├── app.py        # 主应用
+│   ├── config.py     # 配置文件
+│   ├── database.py   # 数据库操作
+│   ├── mqtt_client.py # MQTT 客户端
+│   └── routes/       # 模块化路由
+│       ├── air_conditioner.py  # 空调模块
+│       └── lock.py            # 门锁模块
+├── frontend/         # 前端页面
+│   ├── index.html    # 主页
+│   ├── air-conditioner.html  # 空调控制页
+│   └── lock.html     # 门锁控制页
+├── simulator/        # 设备模拟器
+│   ├── sensor_sim.py # 温湿度传感器模拟器（智能感知空调）
+│   └── lock_sim.py   # 门锁模拟器
+├── init_db.sql       # 数据库初始化 SQL
+├── init_ac.py        # 空调数据初始化脚本
+├── setup_database.sh # 数据库一键初始化脚本
+└── run.sh           # 系统启动脚本
+```
+
+**数据流向**：
+```
+传感器模拟器/门锁模拟器 → MQTT Broker → MQTT 客户端 → openGauss 数据库
+         ↑                                    ↓
+         |                            Flask Web 服务器
+         |                                    ↓
+         |                            前端界面（ECharts）
+         |                                    ↓
+         └──────────── 空调控制反馈 ──────────┘
 ```
 
 ---
@@ -258,46 +290,65 @@ pip install -r requirements.txt
 
 ### 4. 配置环境变量
 
-```bash
-touch .env
-```
-写入：
-DB_USER=your_name
-DB_PASSWORD=your_passwd
-DB_ADMIN_USER=opengauss
-DB_ADMIN_PASSWORD=your_admin_password
-
-**必须修改的配置**：
+创建 `.env` 文件（参考 `CONFIG_TEMPLATE.md`）：
 
 ```bash
+# 复制配置模板
+cat > .env << 'EOF'
 # 数据库配置
-DB_USER=your_username              # 你的数据库用户名
-DB_PASSWORD=your_password          # 你的数据库密码
-DB_ADMIN_USER=opengauss            # GaussDB 管理员用户
-DB_ADMIN_PASSWORD=admin_password   # 管理员密码
-
-# 数据库连接信息
 DB_HOST=127.0.0.1
-DB_PORT=7654                       # 根据实际端口修改
-DB_NAME=smart_home
+DB_PORT=7654
+DB_NAME=smart_name
+DB_ADMIN_USER=opengauss
+DB_ADMIN_PASSWORD=your_admin_password_here
+DB_USER=nis3351_user
+DB_PASSWORD=your_user_password_here
+
+# MQTT 配置
+MQTT_BROKER=localhost
+MQTT_PORT=1883
+EOF
+
+# 编辑配置文件，替换密码
+vi .env
 ```
 
-### 5. 初始化数据库
+**配置说明**：
+- `DB_HOST`: openGauss 数据库主机地址
+- `DB_PORT`: openGauss 端口（默认 7654）
+- `DB_ADMIN_USER`: 管理员用户（通常是 `opengauss`）
+- `DB_USER`: 应用用户名（建议 `nis3351_user`）
+- 详细配置说明请查看 `CONFIG_TEMPLATE.md`
+
+### 5. 一键初始化数据库
+
+运行初始化脚本，自动完成数据库创建、表创建、权限配置和数据初始化：
 
 ```bash
-# 给脚本添加执行权限
+# 给脚本添加执行权限（首次运行）
 chmod +x setup_database.sh
 
 # 运行初始化脚本
-./setup_database.sh
+sh setup_database.sh
 ```
 
-脚本会自动：
-- ✅ 读取 .env 配置
-- ✅ 创建数据库
-- ✅ 创建数据表
-- ✅ 插入测试数据
-- ✅ 配置用户权限
+**初始化脚本会自动完成以下步骤**：
+1. ✅ 测试数据库连接
+2. ✅ 创建数据库和所有表：
+   - `temperature_humidity_data` - 温湿度数据
+   - `lock_state` - 门锁状态
+   - `lock_events` - 门锁事件
+   - `ac_state` - 空调状态
+   - `ac_events` - 空调事件
+3. ✅ 配置用户权限
+4. ✅ 初始化应用数据：
+   - 空调：`ac_room1`, `ac_room2`
+   - 门锁：`FRONT_DOOR`
+
+如果初始化失败，请检查：
+- openGauss 是否正在运行：`ps -ef | grep gaussdb`
+- `.env` 文件中的配置是否正确
+- 网络端口是否开放
 
 ---
 
@@ -360,45 +411,54 @@ pkill -f 'python.*backend|python.*simulator|http.server'
 
 ## 📡 API 接口
 
+### 温湿度模块
+
 | 方法 | 端点 | 说明 |
 |------|------|------|
 | GET | `/` | API 信息 |
 | GET | `/devices` | 获取所有设备列表 |
-| GET | `/history` | 获取所有历史数据 |
-| GET | `/history/<device_id>` | 获取指定设备历史数据 |
+| GET | `/history/<device_id>?limit=50` | 获取指定设备历史数据 |
 | GET | `/latest/<device_id>` | 获取指定设备最新数据 |
 
-### 门锁 API（front_door）
+### 空调模块
+
 | 方法 | 端点 | 说明 |
 |------|------|------|
-| GET | `/locks` | 列出所有门锁状态 |
-| GET | `/locks/front_door/state` | 获取门锁当前状态（LOCKED/UNLOCKED、method、actor、battery） |
-| GET | `/locks/front_door/events?limit=50` | 获取门锁最近事件 |
-| POST | `/locks/front_door/command` | 下发命令，body: `{ "action": "lock|unlock", "method": "PINCODE|APP|FINGERPRINT|REMOTE|KEY", "actor": "Dad", "pin": "1234" }` |
+| GET | `/ac` | 获取所有空调列表 |
+| GET | `/ac/<ac_id>` | 获取空调状态 |
+| POST | `/ac/<ac_id>/control` | 控制空调 |
+| GET | `/ac/<ac_id>/events` | 获取空调事件历史 |
 
-示例：
+**控制空调示例**：
 ```bash
-# 获取门锁状态
-curl http://localhost:5000/locks/front_door/state
-
-# 解锁（PINCODE）
-curl -X POST http://localhost:5000/locks/front_door/command \
-  -H 'Content-Type: application/json' \
-  -d '{"action":"unlock","method":"PINCODE","actor":"Dad","pin":"1234"}'
-
-# 上锁
-curl -X POST http://localhost:5000/locks/front_door/command \
-  -H 'Content-Type: application/json' \
-  -d '{"action":"lock","method":"APP","actor":"Dad"}'
+curl -X POST http://localhost:5000/ac/ac_room1/control \
+  -H "Content-Type: application/json" \
+  -d '{
+    "power": true,
+    "target_temp": 26.0,
+    "mode": "cool",
+    "fan_speed": "auto"
+  }'
 ```
 
-**示例**：
-```bash
-# 获取设备列表
-curl http://localhost:5000/devices
+### 门锁模块
 
-# 获取 room1 的历史数据
-curl http://localhost:5000/history/room1
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/lock` | 获取所有门锁列表 |
+| GET | `/lock/<lock_id>` | 获取门锁状态 |
+| POST | `/lock/<lock_id>/control` | 控制门锁 |
+| GET | `/lock/<lock_id>/events` | 获取门锁事件历史 |
+
+**控制门锁示例**：
+```bash
+curl -X POST http://localhost:5000/lock/FRONT_DOOR/control \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "lock",
+    "method": "remote",
+    "actor": "用户A"
+  }'
 ```
 
 ---
@@ -414,6 +474,99 @@ curl http://localhost:5000/history/room1
 | temperature | FLOAT | 温度值（°C） |
 | humidity | FLOAT | 湿度值（%） |
 | timestamp | TIMESTAMP | 记录时间 |
+
+---
+
+## 🎯 开发者指南
+
+### 模块化架构
+
+后端采用 Flask Blueprint 进行模块化开发，每个功能模块独立管理：
+
+- **空调模块**：`backend/routes/air_conditioner.py`
+- **门锁模块**：`backend/routes/lock.py`
+
+这种设计便于：
+- ✅ 多人协作开发，互不干扰
+- ✅ 代码组织清晰，易于维护
+- ✅ 功能模块独立，便于测试
+
+### 添加新设备模块
+
+如需添加新的设备类型（如窗帘、灯光等）：
+
+1. **在 `backend/routes/` 创建新模块**：
+   ```python
+   # backend/routes/curtain.py
+   from flask import Blueprint, request, jsonify
+   
+   curtain_bp = Blueprint('curtain', __name__)
+   
+   @curtain_bp.route('/curtain/<curtain_id>', methods=['GET'])
+   def get_curtain_status(curtain_id):
+       # 实现逻辑
+       return jsonify({"status": "success"})
+   ```
+
+2. **在 `backend/app.py` 注册 Blueprint**：
+   ```python
+   from routes.curtain import curtain_bp
+   app.register_blueprint(curtain_bp)
+   ```
+
+3. **在 `backend/database.py` 添加数据库函数**：
+   ```python
+   def get_curtain_state(curtain_id):
+       # 实现数据库查询
+       pass
+   ```
+
+4. **更新 `init_db.sql` 添加表结构**
+
+5. **运行数据库迁移**：
+   ```bash
+   sh setup_database.sh
+   ```
+
+### 数据库操作规范
+
+所有数据库操作统一在 `backend/database.py` 中管理，自动兼容 openGauss 和 SQLite：
+
+```python
+from database import get_ac_state, upsert_ac_state
+
+# 获取数据
+state = get_ac_state('ac_room1')
+
+# 更新数据
+upsert_ac_state(
+    ac_id='ac_room1',
+    device_id='room1',
+    power=True,
+    target_temp=26.0
+)
+```
+
+### 配置管理
+
+所有配置统一在 `backend/config.py` 中管理：
+
+```python
+# 添加新配置
+NEW_SETTING = os.getenv('NEW_SETTING', 'default_value')
+```
+
+然后在 `.env` 文件中设置：
+```bash
+NEW_SETTING=your_value
+```
+
+### 开发规范
+
+1. **代码提交前**：确保所有模块正常运行
+2. **数据库修改**：同步更新 `init_db.sql` 和 `database.py`
+3. **新增配置**：添加到 `CONFIG_TEMPLATE.md` 中并说明
+4. **API 修改**：更新本 README 中的 API 接口文档
 
 ---
 

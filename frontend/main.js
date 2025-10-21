@@ -91,7 +91,7 @@ async function loadDevices() {
         const devices = await response.json();
         
         const select = document.getElementById('deviceSelect');
-        select.innerHTML = '<option value="all">所有设备</option>';
+        select.innerHTML = '';  // 清空选项，不显示"所有设备"
         
         devices.forEach(device => {
             const option = document.createElement('option');
@@ -99,6 +99,11 @@ async function loadDevices() {
             option.textContent = `${device.device_id} (${device.data_count} 条数据)`;
             select.appendChild(option);
         });
+        
+        // 默认选择第一个设备
+        if (devices.length > 0) {
+            currentDevice = devices[0].device_id;
+        }
     } catch (error) {
         console.error('加载设备列表失败:', error);
         updateStatus('加载设备失败', 'error');
@@ -106,13 +111,16 @@ async function loadDevices() {
 }
 
 // 加载历史数据
-async function loadHistory(deviceId = 'all') {
+async function loadHistory(deviceId) {
     try {
         updateStatus('加载中...', 'loading');
         
-        const url = deviceId === 'all' 
-            ? `${API_BASE}/history?limit=50&_t=${Date.now()}`
-            : `${API_BASE}/history/${deviceId}?limit=50&_t=${Date.now()}`;
+        // 如果没有指定设备，使用当前设备
+        if (!deviceId) {
+            deviceId = currentDevice || 'room1';
+        }
+        
+        const url = `${API_BASE}/history/${deviceId}?limit=50&_t=${Date.now()}`;
         
         const response = await fetch(url, {
             method: 'GET',

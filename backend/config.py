@@ -44,6 +44,26 @@ FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
 FLASK_PORT = int(os.getenv("FLASK_PORT", "5000"))
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
+# ==================== 模拟器配置 ====================
+# 温湿度传感器数据发送间隔（秒）
+INTERVAL = int(os.getenv("SENSOR_INTERVAL", "5"))
+
+# 要模拟的温湿度传感器设备列表
+SENSORS = [
+    {
+        "device_id": "room1",
+        "location": "客厅",
+        "topic": "home/room1/temperature_humidity",
+        "enabled": True
+    },
+    {
+        "device_id": "room2",
+        "location": "卧室",
+        "topic": "home/room2/temperature_humidity",
+        "enabled": True
+    },
+]
+
 # ==================== 使用说明 ====================
 """
 使用 .env 文件配置：

@@ -108,7 +108,7 @@ async function loadDevices() {
         console.log('获取到设备数据:', devices);
         
         const select = document.getElementById('deviceSelect');
-        select.innerHTML = '<option value="all">所有设备</option>';
+        select.innerHTML = '';  // 清空选项
         
         devices.forEach(device => {
             const option = document.createElement('option');
@@ -116,6 +116,11 @@ async function loadDevices() {
             option.textContent = `${device.device_id} (${device.data_count} 条数据)`;
             select.appendChild(option);
         });
+        
+        // 默认选择第一个设备
+        if (devices.length > 0) {
+            currentDevice = devices[0].device_id;
+        }
         
         updateStatus('设备列表加载成功', 'success');
     } catch (error) {
@@ -126,16 +131,19 @@ async function loadDevices() {
 }
 
 // 加载历史数据
-async function loadHistory(deviceId = 'all') {
+async function loadHistory(deviceId) {
     try {
         updateStatus('加载中...', 'loading');
         
-        const baseUrl = deviceId === 'all' 
-            ? `${API_BASE}/history?limit=50`
-            : `${API_BASE}/history/${deviceId}?limit=50`;
+        // 如果没有指定设备，使用当前设备
+        if (!deviceId) {
+            deviceId = currentDevice || 'room1';
+        }
+        
+        const baseUrl = `${API_BASE}/history/${deviceId}?limit=50`;
         
         // 添加时间戳避免缓存
-        const url = baseUrl + (baseUrl.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
+        const url = baseUrl + `&_t=${Date.now()}`;
         
         console.log('正在请求历史数据:', url);
         
@@ -222,32 +230,122 @@ function updateStatus(message, type = 'info') {
 }
 
 // 空调控制
+// 根据当前设备动态生成空调ID
+function getACId() {
+    const device = currentDevice || 'room1';
+    return `ac_${device}`;
+}
+
 function setupACControls() {
     const acButtons = document.querySelectorAll('.ac-btn');
     const acStatus = document.getElementById('acStatus');
     
+    // 加载初始空调状态
+    loadACStatus();
+    
     acButtons.forEach(button => {
-        button.addEventListener('click', () => {
+        button.addEventListener('click', async () => {
             if (button.id === 'acOff') {
+                // 关闭空调
+                await controlAC(false, null);
+            } else {
+                const temp = button.getAttribute('data-temp');
+                // 开启空调并设置温度
+                await controlAC(true, parseFloat(temp));
+            }
+        });
+    });
+    
+    // 定时刷新空调状态
+    setInterval(loadACStatus, 5000);
+}
+
+// 加载空调状态
+async function loadACStatus() {
+    try {
+        const acId = getACId();
+        const response = await fetch(`${API_BASE}/ac/${acId}?_t=${Date.now()}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            cache: 'no-cache'
+        });
+        
+        if (response.ok) {
+            const state = await response.json();
+            const acStatus = document.getElementById('acStatus');
+            
+            if (state.power) {
+                acStatus.textContent = `运行中 (目标: ${state.target_temp}°C, 当前: ${state.current_temp}°C)`;
+                acStatus.style.color = '#28a745';
+            } else {
+                acStatus.textContent = '已关闭';
+                acStatus.style.color = '#dc3545';
+            }
+        }
+    } catch (error) {
+        console.error('加载空调状态失败:', error);
+    }
+}
+
+// 控制空调
+async function controlAC(power, targetTemp) {
+    try {
+        updateStatus('正在控制空调...', 'loading');
+        
+        const body = {
+            power: power,
+            device_id: currentDevice === 'all' ? 'room1' : currentDevice,
+            mode: 'cool'
+        };
+        
+        if (targetTemp !== null) {
+            body.target_temp = targetTemp;
+        }
+        
+        const acId = getACId();
+        const response = await fetch(`${API_BASE}/ac/${acId}/control`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            
+            const acStatus = document.getElementById('acStatus');
+            if (power) {
+                acStatus.textContent = `运行中 (${targetTemp}°C)`;
+                acStatus.style.color = '#28a745';
+                updateStatus(`空调已设置为 ${targetTemp}°C`, 'success');
+            } else {
                 acStatus.textContent = '已关闭';
                 acStatus.style.color = '#dc3545';
                 updateStatus('空调已关闭', 'success');
-            } else {
-                const temp = button.getAttribute('data-temp');
-                acStatus.textContent = `运行中 (${temp}°C)`;
-                acStatus.style.color = '#28a745';
-                updateStatus(`空调已设置为 ${temp}°C`, 'success');
             }
             
-            // 这里可以添加实际的空调控制API调用
-        });
-    });
+            // 刷新状态
+            setTimeout(loadACStatus, 1000);
+        } else {
+            throw new Error('控制失败');
+        }
+    } catch (error) {
+        console.error('控制空调失败:', error);
+        updateStatus('控制空调失败', 'error');
+    }
 }
 
 // 事件监听
 document.getElementById('deviceSelect').addEventListener('change', (e) => {
     currentDevice = e.target.value;
     loadHistory(currentDevice);
+    // 切换设备时也重新加载空调状态
+    loadACStatus();
 });
 
 document.getElementById('refreshBtn').addEventListener('click', () => {
