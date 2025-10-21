@@ -28,6 +28,12 @@ DB_CONFIG = {
     "port": int(os.getenv("DB_PORT", "7654"))
 }
 
+
+# 数据库类型：'opengauss' 或 'sqlite'（本地默认 sqlite，便于零依赖运行）
+DB_TYPE = os.getenv("DB_TYPE", "sqlite")
+# 当使用 sqlite 时，DB_PATH 指向数据库文件（相对或绝对路径）
+DB_PATH = os.getenv("DB_PATH", str(Path(__file__).parent.parent / 'data.sqlite3'))
+
 # ==================== MQTT 配置 ====================
 MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
