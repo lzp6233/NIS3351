@@ -28,56 +28,150 @@ device_current_temps = {}
 def generate_sensor_data(device_id):
     """
     生成模拟的温湿度数据
-    如果有空调在运行，温度会逐渐向目标温度靠近
+    根据空调的运行模式智能调节温湿度：
+    - cool (制冷): 降温 + 除湿
+    - heat (制热): 升温 + 干燥
+    - fan (送风): 微小波动，不主动调节
+    - dehumidify (除湿): 轻微降温 + 强力除湿
     """
-    # 初始化设备温度
+    # 初始化设备温度状态（从数据库读取最后值，避免重启时跳变）
     if device_id not in device_current_temps:
-        device_current_temps[device_id] = round(random.uniform(24, 28), 1)
+        # 尝试从数据库获取最后一次的温湿度值
+        from database import get_latest_data
+        latest_data = get_latest_data(device_id)
+        
+        if latest_data:
+            # 使用数据库中的最后值作为初始值
+            device_current_temps[device_id] = latest_data['temperature']
+            print(f"📊 [{device_id}] 从数据库恢复温度: {latest_data['temperature']}°C")
+        else:
+            # 如果数据库中没有数据，使用随机值
+            device_current_temps[device_id] = round(random.uniform(24, 28), 1)
+            print(f"📊 [{device_id}] 初始化温度: {device_current_temps[device_id]}°C")
+    
+    # 初始化湿度状态（从数据库读取最后值，避免重启时跳变）
+    if not hasattr(generate_sensor_data, 'device_current_humidity'):
+        generate_sensor_data.device_current_humidity = {}
+    
+    if device_id not in generate_sensor_data.device_current_humidity:
+        # 尝试从数据库获取最后一次的湿度值
+        from database import get_latest_data
+        latest_data = get_latest_data(device_id)
+        
+        if latest_data:
+            # 使用数据库中的最后值作为初始值
+            generate_sensor_data.device_current_humidity[device_id] = latest_data['humidity']
+            print(f"💧 [{device_id}] 从数据库恢复湿度: {latest_data['humidity']}%")
+        else:
+            # 如果数据库中没有数据，使用随机值
+            generate_sensor_data.device_current_humidity[device_id] = round(random.uniform(50, 60), 1)
+            print(f"💧 [{device_id}] 初始化湿度: {generate_sensor_data.device_current_humidity[device_id]}%")
     
     current_temp = device_current_temps[device_id]
+    current_humidity = generate_sensor_data.device_current_humidity[device_id]
     
     # 检查该房间是否有空调在运行
     ac_id = f"ac_{device_id}"
     ac_state = get_ac_state(ac_id)
     
     if ac_state and ac_state.get('power'):
-        # 空调开启，温度向目标温度调整
+        # 空调开启，根据模式调整温湿度
+        mode = ac_state.get('mode', 'cool')
         target_temp = ac_state.get('target_temp', 26.0)
         
-        # 温度变化速度（每次调整 0.3-0.8 度）
-        temp_change = random.uniform(0.3, 0.8)
-        
-        if current_temp > target_temp:
-            # 当前温度高于目标，降温
+        if mode == 'cool':
+            # 制冷模式：降温 + 除湿
+            temp_change = random.uniform(0.3, 0.8)
+            humidity_change = random.uniform(0.5, 2.0)  # 制冷时除湿效果
+            
+            if current_temp > target_temp:
+                new_temp = current_temp - temp_change
+                new_temp = max(new_temp, target_temp)
+            elif current_temp < target_temp:
+                new_temp = current_temp + temp_change * 0.3  # 制冷模式下升温很慢
+                new_temp = min(new_temp, target_temp)
+            else:
+                new_temp = target_temp + random.uniform(-0.2, 0.2)
+            
+            # 制冷除湿
+            new_humidity = current_humidity - humidity_change
+            new_humidity = max(30, new_humidity)  # 最低30%
+            
+        elif mode == 'heat':
+            # 制热模式：升温 + 干燥
+            temp_change = random.uniform(0.4, 0.9)  # 制热稍快
+            humidity_change = random.uniform(0.3, 1.0)  # 加热使空气干燥
+            
+            if current_temp < target_temp:
+                new_temp = current_temp + temp_change
+                new_temp = min(new_temp, target_temp)
+            elif current_temp > target_temp:
+                new_temp = current_temp - temp_change * 0.3  # 制热模式下降温很慢
+                new_temp = max(new_temp, target_temp)
+            else:
+                new_temp = target_temp + random.uniform(-0.2, 0.2)
+            
+            # 制热干燥
+            new_humidity = current_humidity - humidity_change
+            new_humidity = max(25, new_humidity)  # 制热可能更干燥
+            
+        elif mode == 'fan':
+            # 送风模式：几乎不调节温湿度，只有微小波动
+            new_temp = current_temp + random.uniform(-0.1, 0.1)
+            new_humidity = current_humidity + random.uniform(-0.2, 0.2)
+            
+        elif mode == 'dehumidify':
+            # 除湿模式：轻微降温 + 强力除湿
+            temp_change = random.uniform(0.1, 0.3)  # 除湿时温度稍微下降
+            humidity_change = random.uniform(1.0, 3.0)  # 强力除湿
+            
+            # 轻微降温
             new_temp = current_temp - temp_change
-            new_temp = max(new_temp, target_temp)  # 不低于目标温度
-        elif current_temp < target_temp:
-            # 当前温度低于目标，升温
-            new_temp = current_temp + temp_change
-            new_temp = min(new_temp, target_temp)  # 不高于目标温度
+            new_temp = max(new_temp, target_temp - 2)  # 除湿模式不会降温太多
+            
+            # 强力除湿
+            new_humidity = current_humidity - humidity_change
+            new_humidity = max(30, new_humidity)  # 最低30%
+            
         else:
-            # 已达到目标温度，保持稳定（微小波动）
-            new_temp = target_temp + random.uniform(-0.2, 0.2)
+            # 未知模式，使用默认制冷逻辑
+            temp_change = random.uniform(0.3, 0.8)
+            if current_temp > target_temp:
+                new_temp = current_temp - temp_change
+                new_temp = max(new_temp, target_temp)
+            else:
+                new_temp = target_temp + random.uniform(-0.2, 0.2)
+            new_humidity = current_humidity - random.uniform(0.5, 1.5)
         
         device_current_temps[device_id] = round(new_temp, 1)
+        generate_sensor_data.device_current_humidity[device_id] = round(new_humidity, 1)
+        
     else:
-        # 空调关闭或不存在，温度自然波动
-        # 温度逐渐趋向环境温度 (假设环境温度 26-28°C)
+        # 空调关闭或不存在，温湿度自然波动
+        # 温度逐渐趋向环境温度 (假设环境温度 27°C)
         ambient_temp = 27.0
-        drift = (ambient_temp - current_temp) * 0.1  # 10% 向环境温度漂移
-        natural_variation = random.uniform(-0.3, 0.3)
-        new_temp = current_temp + drift + natural_variation
+        ambient_humidity = 55.0
+        
+        # 温度向环境温度漂移
+        temp_drift = (ambient_temp - current_temp) * 0.1
+        natural_temp_variation = random.uniform(-0.3, 0.3)
+        new_temp = current_temp + temp_drift + natural_temp_variation
+        
+        # 湿度向环境湿度漂移
+        humidity_drift = (ambient_humidity - current_humidity) * 0.1
+        natural_humidity_variation = random.uniform(-2, 2)
+        new_humidity = current_humidity + humidity_drift + natural_humidity_variation
+        
         device_current_temps[device_id] = round(new_temp, 1)
+        generate_sensor_data.device_current_humidity[device_id] = round(new_humidity, 1)
     
-    # 湿度生成（受温度影响，温度低时湿度略高）
-    base_humidity = 50
-    temp_factor = (25 - device_current_temps[device_id]) * 2  # 温度每低1度，湿度+2%
-    humidity = round(base_humidity + temp_factor + random.uniform(-5, 5), 1)
-    humidity = max(30, min(70, humidity))  # 限制在 30-70%
+    # 确保温湿度在合理范围内
+    final_temp = max(10, min(40, device_current_temps[device_id]))
+    final_humidity = max(20, min(80, generate_sensor_data.device_current_humidity[device_id]))
     
     return {
-        "temperature": device_current_temps[device_id],
-        "humidity": humidity
+        "temperature": final_temp,
+        "humidity": final_humidity
     }
 
 
@@ -121,7 +215,15 @@ def main():
                 ac_status = ""
                 if ac_state and ac_state.get('power'):
                     target = ac_state.get('target_temp')
-                    ac_status = f" [空调: ON, 目标 {target}°C]"
+                    mode = ac_state.get('mode', 'cool')
+                    mode_icons = {
+                        'cool': '❄️',
+                        'heat': '🔥',
+                        'fan': '💨',
+                        'dehumidify': '💧'
+                    }
+                    mode_icon = mode_icons.get(mode, '🌡️')
+                    ac_status = f" [空调: {mode_icon} {mode.upper()}, 目标 {target}°C]"
                 
                 # 发送数据
                 client.publish(topic, json.dumps(data))

@@ -320,18 +320,102 @@ body {
     text-align: center;
 }
 
+.ac-controls h4 {
+    margin: 15px 0 10px 0;
+    color: #555;
+    font-size: 1.1em;
+    text-align: center;
+}
+
+/* 模式选择样式 */
+.mode-selection {
+    margin-bottom: 25px;
+    padding: 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.mode-group {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.mode-btn {
+    padding: 12px 20px;
+    border: 2px solid #ddd;
+    background: white;
+    color: #333;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 100px;
+}
+
+.mode-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.mode-btn.active {
+    border-color: #667eea;
+    background: #667eea;
+    color: white;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.mode-btn[data-mode="cool"].active {
+    background: #17a2b8;
+    border-color: #17a2b8;
+}
+
+.mode-btn[data-mode="heat"].active {
+    background: #fd7e14;
+    border-color: #fd7e14;
+}
+
+.mode-btn[data-mode="fan"].active {
+    background: #6c757d;
+    border-color: #6c757d;
+}
+
+.mode-btn[data-mode="dehumidify"].active {
+    background: #20c997;
+    border-color: #20c997;
+}
+
+/* 温度控制样式 */
+.temp-control {
+    margin-bottom: 20px;
+    padding: 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
 .control-group {
     display: flex;
     justify-content: center;
     gap: 15px;
     flex-wrap: wrap;
-    margin-bottom: 20px;
 }
 
 .ac-status {
     text-align: center;
-    font-weight: 500;
-    color: #555;
+    padding: 15px;
+    background: white;
+    border-radius: 8px;
+    margin-top: 15px;
+    line-height: 1.8;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.ac-status strong {
+    color: #333;
 }
 
 /* 响应式设计 */

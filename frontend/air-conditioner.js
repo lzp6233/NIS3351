@@ -232,32 +232,95 @@ function updateStatus(message, type = 'info') {
 // 空调控制
 // 根据当前设备动态生成空调ID
 function getACId() {
-    const device = currentDevice || 'room1';
+    // 如果是 'all' 或未设置，默认使用 room1
+    let device = currentDevice;
+    if (!device || device === 'all') {
+        device = 'room1';
+    }
     return `ac_${device}`;
 }
 
+// 当前选中的模式
+let currentMode = 'cool';
+
 function setupACControls() {
     const acButtons = document.querySelectorAll('.ac-btn');
-    const acStatus = document.getElementById('acStatus');
+    const modeButtons = document.querySelectorAll('.mode-btn');
     
     // 加载初始空调状态
     loadACStatus();
     
+    // 模式切换按钮事件
+    modeButtons.forEach(button => {
+        button.addEventListener('click', async () => {
+            const mode = button.getAttribute('data-mode');
+            currentMode = mode;
+            
+            // 更新按钮样式
+            modeButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            
+            // 如果空调正在运行，立即应用新模式
+            const acId = getACId();
+            const state = await getACState();
+            if (state && state.power) {
+                await controlAC(true, state.target_temp, mode);
+            } else {
+                updateStatus(`已选择${getModeDisplayName(mode)}模式`, 'success');
+            }
+        });
+    });
+    
+    // 温度控制按钮事件
     acButtons.forEach(button => {
         button.addEventListener('click', async () => {
             if (button.id === 'acOff') {
                 // 关闭空调
-                await controlAC(false, null);
+                await controlAC(false, null, null);
             } else {
                 const temp = button.getAttribute('data-temp');
-                // 开启空调并设置温度
-                await controlAC(true, parseFloat(temp));
+                // 开启空调并设置温度（使用当前选择的模式）
+                await controlAC(true, parseFloat(temp), currentMode);
             }
         });
     });
     
     // 定时刷新空调状态
     setInterval(loadACStatus, 5000);
+}
+
+// 获取空调状态（不显示UI）
+async function getACState() {
+    try {
+        const acId = getACId();
+        const response = await fetch(`${API_BASE}/ac/${acId}?_t=${Date.now()}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            cache: 'no-cache'
+        });
+        
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    } catch (error) {
+        console.error('获取空调状态失败:', error);
+        return null;
+    }
+}
+
+// 获取模式显示名称
+function getModeDisplayName(mode) {
+    const modeNames = {
+        'cool': '❄️ 制冷',
+        'heat': '🔥 制热',
+        'fan': '💨 送风',
+        'dehumidify': '💧 除湿'
+    };
+    return modeNames[mode] || mode;
 }
 
 // 加载空调状态
@@ -276,6 +339,7 @@ async function loadACStatus() {
         if (response.ok) {
             const state = await response.json();
             const acStatus = document.getElementById('acStatus');
+            const acModeEl = document.getElementById('acMode');
             
             if (state.power) {
                 acStatus.textContent = `运行中 (目标: ${state.target_temp}°C, 当前: ${state.current_temp}°C)`;
@@ -284,6 +348,20 @@ async function loadACStatus() {
                 acStatus.textContent = '已关闭';
                 acStatus.style.color = '#dc3545';
             }
+            
+            // 显示当前模式
+            if (state.mode) {
+                acModeEl.textContent = getModeDisplayName(state.mode);
+                currentMode = state.mode;
+                
+                // 更新模式按钮高亮
+                document.querySelectorAll('.mode-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                    if (btn.getAttribute('data-mode') === state.mode) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
         }
     } catch (error) {
         console.error('加载空调状态失败:', error);
@@ -291,14 +369,20 @@ async function loadACStatus() {
 }
 
 // 控制空调
-async function controlAC(power, targetTemp) {
+async function controlAC(power, targetTemp, mode = null) {
     try {
         updateStatus('正在控制空调...', 'loading');
         
+        // 获取正确的设备ID
+        let device = currentDevice;
+        if (!device || device === 'all') {
+            device = 'room1';
+        }
+        
         const body = {
             power: power,
-            device_id: currentDevice === 'all' ? 'room1' : currentDevice,
-            mode: 'cool'
+            device_id: device,
+            mode: mode || currentMode  // 使用传入的模式或当前选择的模式
         };
         
         if (targetTemp !== null) {
@@ -319,10 +403,14 @@ async function controlAC(power, targetTemp) {
             const result = await response.json();
             
             const acStatus = document.getElementById('acStatus');
+            const acModeEl = document.getElementById('acMode');
+            
             if (power) {
+                const modeDisplay = getModeDisplayName(mode || currentMode);
                 acStatus.textContent = `运行中 (${targetTemp}°C)`;
                 acStatus.style.color = '#28a745';
-                updateStatus(`空调已设置为 ${targetTemp}°C`, 'success');
+                acModeEl.textContent = modeDisplay;
+                updateStatus(`空调已设置为 ${modeDisplay} ${targetTemp}°C`, 'success');
             } else {
                 acStatus.textContent = '已关闭';
                 acStatus.style.color = '#dc3545';
@@ -332,11 +420,14 @@ async function controlAC(power, targetTemp) {
             // 刷新状态
             setTimeout(loadACStatus, 1000);
         } else {
-            throw new Error('控制失败');
+            // 尝试获取错误详情
+            const errorText = await response.text();
+            console.error('服务器响应:', response.status, errorText);
+            throw new Error(`控制失败 (${response.status}): ${errorText.substring(0, 100)}`);
         }
     } catch (error) {
         console.error('控制空调失败:', error);
-        updateStatus('控制空调失败', 'error');
+        updateStatus(`控制失败: ${error.message}`, 'error');
     }
 }
 

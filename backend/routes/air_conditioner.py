@@ -90,13 +90,15 @@ def control_ac(ac_id):
     # 提取控制参数
     power = body.get('power')  # True/False
     target_temp = body.get('target_temp')  # 目标温度
-    mode = body.get('mode')  # cool/heat/fan
+    mode = body.get('mode')  # cool/heat/fan/dehumidify
     fan_speed = body.get('fan_speed')  # low/medium/high/auto
     device_id = body.get('device_id', 'room1')
     
     # 记录旧值（用于事件日志）
-    old_power = current_state['power'] if current_state else False
-    old_temp = current_state['target_temp'] if current_state else None
+    old_power = current_state.get('power') if current_state else False
+    old_temp = current_state.get('target_temp') if current_state else None
+    old_mode = current_state.get('mode') if current_state else None
+    old_fan_speed = current_state.get('fan_speed') if current_state else None
     
     # 更新空调状态
     upsert_ac_state(
@@ -108,7 +110,7 @@ def control_ac(ac_id):
         fan_speed=fan_speed
     )
     
-    # 记录事件
+    # 记录事件（使用英文避免编码问题）
     if power is not None and power != old_power:
         event_type = 'power_on' if power else 'power_off'
         insert_ac_event(
@@ -116,7 +118,7 @@ def control_ac(ac_id):
             event_type=event_type,
             old_value=str(old_power),
             new_value=str(power),
-            detail=f"空调{'开启' if power else '关闭'}"
+            detail=f"AC {'turned on' if power else 'turned off'}"
         )
     
     if target_temp is not None and target_temp != old_temp:
@@ -125,7 +127,32 @@ def control_ac(ac_id):
             event_type='temp_change',
             old_value=str(old_temp) if old_temp else None,
             new_value=str(target_temp),
-            detail=f"目标温度设置为 {target_temp}°C"
+            detail=f"Target temp set to {target_temp}C"
+        )
+    
+    if mode is not None and mode != old_mode:
+        # 使用英文避免中文编码问题
+        mode_display = {
+            'cool': 'cooling',
+            'heat': 'heating',
+            'fan': 'fan',
+            'dehumidify': 'dehumidify'
+        }
+        insert_ac_event(
+            ac_id=ac_id,
+            event_type='mode_change',
+            old_value=old_mode,
+            new_value=mode,
+            detail=f"Mode changed to {mode_display.get(mode, mode)}"
+        )
+    
+    if fan_speed is not None and fan_speed != old_fan_speed:
+        insert_ac_event(
+            ac_id=ac_id,
+            event_type='fan_speed_change',
+            old_value=old_fan_speed,
+            new_value=fan_speed,
+            detail=f"Fan speed set to {fan_speed}"
         )
     
     return jsonify({

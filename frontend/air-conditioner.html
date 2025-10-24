@@ -47,15 +47,33 @@
         
         <div class="ac-controls">
             <h3>空调控制</h3>
-            <div class="control-group">
-                <button class="ac-btn" data-temp="16">16°C</button>
-                <button class="ac-btn" data-temp="20">20°C</button>
-                <button class="ac-btn" data-temp="24">24°C</button>
-                <button class="ac-btn" data-temp="26">26°C</button>
-                <button class="ac-btn" id="acOff">关闭</button>
+            
+            <!-- 模式选择 -->
+            <div class="mode-selection">
+                <h4>运行模式</h4>
+                <div class="mode-group">
+                    <button class="mode-btn" data-mode="cool">❄️ 制冷</button>
+                    <button class="mode-btn" data-mode="heat">🔥 制热</button>
+                    <button class="mode-btn" data-mode="fan">💨 送风</button>
+                    <button class="mode-btn" data-mode="dehumidify">💧 除湿</button>
+                </div>
             </div>
+            
+            <!-- 温度设置 -->
+            <div class="temp-control">
+                <h4>温度设置</h4>
+                <div class="control-group">
+                    <button class="ac-btn" data-temp="16">16°C</button>
+                    <button class="ac-btn" data-temp="20">20°C</button>
+                    <button class="ac-btn" data-temp="24">24°C</button>
+                    <button class="ac-btn" data-temp="26">26°C</button>
+                    <button class="ac-btn" id="acOff">关闭</button>
+                </div>
+            </div>
+            
             <div class="ac-status">
-                空调状态: <span id="acStatus">未运行</span>
+                <strong>空调状态:</strong> <span id="acStatus">未运行</span><br>
+                <strong>当前模式:</strong> <span id="acMode">--</span>
             </div>
         </div>
     </div>
