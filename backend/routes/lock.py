@@ -7,8 +7,11 @@
 from flask import Blueprint, jsonify, request
 from database import (
     get_all_locks, get_lock_state, get_lock_events, 
-    insert_lock_event
+    insert_lock_event, verify_user_credentials, get_user_face_image,
+    get_user_fingerprint_data, get_auto_lock_config, update_auto_lock_config,
+    create_lock_user, get_all_lock_users
 )
+from config import GLOBAL_PINCODE
 from mqtt_client import publish_lock_command
 
 # 创建蓝图
@@ -42,19 +45,178 @@ def lock_command(lock_id):
     """发送门锁控制命令（上锁/解锁）"""
     body = request.get_json(force=True) or {}
     action = body.get('action')  # lock / unlock
-    method = body.get('method')  # PINCODE/FINGERPRINT/APP/REMOTE/KEY
+    method = body.get('method')  # PINCODE/FINGERPRINT/FACE/APP/REMOTE/KEY
     actor = body.get('actor')
     pin = body.get('pin')  # 仅当 method=PINCODE 时使用
+    username = body.get('username')  # 用户名
+    password = body.get('password')  # 密码
+    face_image = body.get('face_image')  # 面部图像数据
+    fingerprint_data = body.get('fingerprint_data')  # 指纹数据
 
     if action not in ("lock", "unlock"):
         return jsonify({"error": "invalid action"}), 400
-    if method not in ("PINCODE", "FINGERPRINT", "APP", "REMOTE", "KEY"):
-        return jsonify({"error": "invalid method"}), 400
+    # 仅支持三种认证方式：PINCODE、指纹、面部。移除 APP/REMOTE/KEY 等方式。
+    if method not in ("PINCODE", "FINGERPRINT", "FACE"):
+        return jsonify({"error": "invalid method, supported: PINCODE, FINGERPRINT, FACE"}), 400
 
-    # 发布到 MQTT，由模拟器/真实设备执行，然后设备会回传 state/event
-    publish_lock_command(lock_id, action, method=method, actor=actor, pin=pin)
+    # 验证认证方式
+    auth_success = False
+    auth_detail = ""
+    
+    if method == "PINCODE":
+        if not all([username, password, pin]):
+            return jsonify({"error": "PINCODE方式需要用户名、密码和PIN码"}), 400
+        auth_success = verify_user_credentials(username, password, pin)
+        auth_detail = "PINCODE认证" + ("成功" if auth_success else "失败")
+        
+    elif method == "FACE":
+        if not all([username, face_image]):
+            return jsonify({"error": "面部识别需要用户名和面部图像"}), 400
+        # 模拟面部识别验证
+        auth_success = verify_face_recognition(username, face_image)
+        auth_detail = "面部识别" + ("成功" if auth_success else "失败")
+        
+    elif method == "FINGERPRINT":
+        if not all([username, fingerprint_data]):
+            return jsonify({"error": "指纹识别需要用户名和指纹数据"}), 400
+        # 模拟指纹识别验证
+        auth_success = verify_fingerprint(username, fingerprint_data)
+        auth_detail = "指纹识别" + ("成功" if auth_success else "失败")
+        
+    # 不再支持其他方式，前面已经校验过 method
 
-    # 记录命令事件（可选立即记一条）
-    insert_lock_event(lock_id, event_type=f"cmd_{action}", method=method, actor=actor, detail="command_sent")
-    return jsonify({"status": "sent"})
+    if not auth_success:
+        # 认证失败，记录事件但不执行命令
+        insert_lock_event(lock_id, event_type=f"auth_fail_{action}", method=method, 
+                         actor=actor or username, detail=auth_detail)
+        return jsonify({"error": "认证失败", "detail": auth_detail}), 401
+
+    # 认证成功，发布到 MQTT
+    publish_lock_command(lock_id, action, method=method, actor=actor or username, pin=pin)
+
+    # 记录命令事件
+    insert_lock_event(lock_id, event_type=f"cmd_{action}", method=method, 
+                     actor=actor or username, detail=f"{auth_detail} - 命令已发送")
+    
+    # 如果是解锁且启用了自动锁定，设置定时器
+    if action == "unlock":
+        auto_config = get_auto_lock_config(lock_id)
+        if auto_config['auto_lock_enabled']:
+            # 这里可以启动一个后台任务来实现自动锁定
+            # 为了简化，我们将在模拟器中实现这个逻辑
+            pass
+    
+    return jsonify({"status": "sent", "auth_detail": auth_detail})
+
+
+def verify_face_recognition(username, face_image_data):
+    """模拟面部识别验证"""
+    # 在实际应用中，这里应该使用真正的面部识别算法
+    # 这里我们模拟一个简单的验证逻辑
+    
+    # 获取用户注册的面部图像路径
+    registered_face_path = get_user_face_image(username)
+    if not registered_face_path:
+        return False
+    
+    # 模拟面部识别过程
+    # 在实际应用中，这里会比较两张图像的面部特征
+    # 这里我们使用一个简单的模拟：如果图像数据长度大于1000就认为匹配
+    try:
+        # 假设 face_image_data 是 base64 编码的图像数据
+        if isinstance(face_image_data, str):
+            import base64
+            decoded_data = base64.b64decode(face_image_data)
+            # 模拟：如果解码后的数据长度大于1000字节，认为匹配
+            return len(decoded_data) > 1000
+        else:
+            # 如果是二进制数据
+            return len(face_image_data) > 1000
+    except:
+        return False
+
+
+def verify_fingerprint(username, fingerprint_data):
+    """模拟指纹识别验证"""
+    # 获取用户注册的指纹数据
+    registered_fingerprint = get_user_fingerprint_data(username)
+    if not registered_fingerprint:
+        return False
+    
+    # 模拟指纹匹配：比较指纹数据的相似度
+    # 在实际应用中，这里会使用复杂的指纹识别算法
+    try:
+        # 简单的模拟：如果提供的指纹数据与注册的指纹数据有80%以上的相似度
+        if isinstance(fingerprint_data, str) and isinstance(registered_fingerprint, str):
+            # 计算字符串相似度（简化版）
+            matches = sum(1 for a, b in zip(fingerprint_data, registered_fingerprint) if a == b)
+            similarity = matches / max(len(fingerprint_data), len(registered_fingerprint))
+            return similarity > 0.8
+        return False
+    except:
+        return False
+
+
+@lock_bp.route("/<lock_id>/auto-lock", methods=["GET", "POST"])
+def auto_lock_config(lock_id):
+    """获取或设置自动锁定配置"""
+    if request.method == "GET":
+        config = get_auto_lock_config(lock_id)
+        return jsonify(config)
+    
+    elif request.method == "POST":
+        body = request.get_json(force=True) or {}
+        auto_lock_enabled = body.get('auto_lock_enabled', True)
+        auto_lock_delay = body.get('auto_lock_delay', 5)
+        
+        update_auto_lock_config(lock_id, auto_lock_enabled, auto_lock_delay)
+        return jsonify({"status": "updated"})
+
+
+@lock_bp.route("/users", methods=["GET"])
+def list_users():
+    """获取所有门锁用户列表（仅返回用户名）"""
+    return jsonify({"users": get_all_lock_users()})
+
+
+@lock_bp.route('/users', methods=['POST'])
+def create_user():
+    """注册新用户：username, password, (face_image base64), (fingerprint_data)
+
+    根据新需求，全局 PINCODE 由配置决定（GLOBAL_PINCODE），因此在创建用户时将使用该值。
+    """
+    body = request.get_json(force=True) or {}
+    username = body.get('username')
+    password = body.get('password')
+    face_image_b64 = body.get('face_image')
+    fingerprint_data = body.get('fingerprint_data')
+
+    if not username or not password:
+        return jsonify({'error': 'username and password are required'}), 400
+
+    # 保存面部图像到 user_images 目录（如果提供）
+    face_image_path = None
+    if face_image_b64:
+        try:
+            import os, base64
+            project_root = os.path.dirname(os.path.dirname(__file__))
+            images_dir = os.path.join(project_root, '..', 'user_images')
+            # normalize
+            images_dir = os.path.abspath(os.path.join(project_root, '..', 'user_images'))
+            os.makedirs(images_dir, exist_ok=True)
+            filename = f"{username}_face_{int(__import__('time').time())}.jpg"
+            path = os.path.join(images_dir, filename)
+            with open(path, 'wb') as f:
+                f.write(base64.b64decode(face_image_b64))
+            face_image_path = path
+        except Exception as e:
+            return jsonify({'error': f'failed to save face image: {e}'}), 500
+
+    try:
+        # 使用全局 PINCODE 存储到用户表中（所有用户共享同一 PIN）
+        create_lock_user(username=username, password=password, pincode=GLOBAL_PINCODE,
+                         face_image_path=face_image_path, fingerprint_data=fingerprint_data)
+        return jsonify({'status': 'created', 'username': username})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
