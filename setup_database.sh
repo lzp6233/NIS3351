@@ -156,6 +156,15 @@ else
     echo "请手动运行: python init_ac.py"
 fi
 
+# 初始化门锁用户
+echo -e "${YELLOW}正在初始化门锁用户...${NC}"
+if python init_lock_users.py > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ 门锁用户初始化成功${NC}"
+else
+    echo -e "${RED}✗ 门锁用户初始化失败${NC}"
+    echo "请手动运行: python init_lock_users.py"
+fi
+
 # 清理密码环境变量
 unset PGPASSWORD
 
@@ -174,12 +183,15 @@ echo "已创建的表："
 echo "  - temperature_humidity_data (温湿度数据)"
 echo "  - lock_state (门锁状态)"
 echo "  - lock_events (门锁事件)"
+echo "  - lock_users (门锁用户)"
+echo "  - lock_auto_config (自动锁定配置)"
 echo "  - ac_state (空调状态)"
 echo "  - ac_events (空调事件)"
 echo ""
 echo "已初始化的数据："
 echo "  - 空调: ac_room1, ac_room2"
 echo "  - 门锁: FRONT_DOOR"
+echo "  - 用户: Dad, Mom (密码: dad123456/mom123456, PIN: 1234/5678)"
 echo ""
 echo "下一步："
 echo "  1. 启动系统: sh run.sh"
