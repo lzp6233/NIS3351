@@ -49,6 +49,28 @@ def get_connection():
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # 用户认证表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS lock_users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                pincode VARCHAR(10) NOT NULL,
+                face_image_path VARCHAR(255),
+                fingerprint_data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # 自动锁定配置表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS lock_auto_config (
+                lock_id VARCHAR(50) PRIMARY KEY,
+                auto_lock_enabled BOOLEAN DEFAULT 1,
+                auto_lock_delay INTEGER DEFAULT 5,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         # 空调状态表
         cur.execute("""
             CREATE TABLE IF NOT EXISTS ac_state (
@@ -424,6 +446,211 @@ def get_lock_events(lock_id, limit=50):
                 'actor': r[4], 'detail': r[5], 'timestamp': r[6].isoformat() if r[6] else None
             })
         return result
+    finally:
+        conn.close()
+
+
+# ==================== 用户认证功能 ====================
+
+def create_lock_user(username, password, pincode, face_image_path=None, fingerprint_data=None):
+    """创建门锁用户"""
+    import hashlib
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO lock_users (username, password_hash, pincode, face_image_path, fingerprint_data)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (username, password_hash, pincode, face_image_path, fingerprint_data)
+            )
+            conn.commit()
+        else:
+            stmt = conn.prepare("""
+                INSERT INTO lock_users (username, password_hash, pincode, face_image_path, fingerprint_data, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            """)
+            stmt(username, password_hash, pincode, face_image_path, fingerprint_data)
+    finally:
+        conn.close()
+
+
+def get_all_lock_users():
+    """返回所有注册的用户名列表"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute("SELECT username FROM lock_users")
+            rows = cur.fetchall()
+            return [r[0] for r in rows]
+        else:
+            stmt = conn.prepare("SELECT username FROM lock_users")
+            rows = stmt()
+            return [r[0] for r in rows]
+    finally:
+        conn.close()
+
+
+def verify_user_credentials(username, password, pincode):
+    """验证用户凭据：用户名 + 密码（用户各自）且 PINCODE 必须与全局 PIN 一致
+
+    说明：根据新需求，PINCODE 为全局一致值（配置为 GLOBAL_PINCODE）。
+    验证步骤：1) 检查用户名与密码是否匹配；2) 检查提供的 pincode 与全局 PIN 相同。
+    """
+    import hashlib
+    from config import GLOBAL_PINCODE
+
+    if str(pincode) != str(GLOBAL_PINCODE):
+        return False
+
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id FROM lock_users WHERE username = ? AND password_hash = ?",
+                (username, password_hash)
+            )
+            return cur.fetchone() is not None
+        else:
+            stmt = conn.prepare(
+                "SELECT id FROM lock_users WHERE username = $1 AND password_hash = $2"
+            )
+            rows = stmt(username, password_hash)
+            for _ in rows:
+                return True
+            return False
+    finally:
+        conn.close()
+
+
+def get_user_face_image(username):
+    """获取用户面部图像路径"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT face_image_path FROM lock_users WHERE username = ?",
+                (username,)
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
+        else:
+            stmt = conn.prepare(
+                "SELECT face_image_path FROM lock_users WHERE username = $1"
+            )
+            rows = stmt(username)
+            for row in rows:
+                return row[0]
+            return None
+    finally:
+        conn.close()
+
+
+def get_user_fingerprint_data(username):
+    """获取用户指纹数据"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT fingerprint_data FROM lock_users WHERE username = ?",
+                (username,)
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
+        else:
+            stmt = conn.prepare(
+                "SELECT fingerprint_data FROM lock_users WHERE username = $1"
+            )
+            rows = stmt(username)
+            for row in rows:
+                return row[0]
+            return None
+    finally:
+        conn.close()
+
+
+def get_auto_lock_config(lock_id):
+    """获取自动锁定配置"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT auto_lock_enabled, auto_lock_delay FROM lock_auto_config WHERE lock_id = ?",
+                (lock_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                return {
+                    'auto_lock_enabled': bool(row[0]),
+                    'auto_lock_delay': row[1]
+                }
+            return {'auto_lock_enabled': True, 'auto_lock_delay': 5}  # 默认值
+        else:
+            stmt = conn.prepare(
+                "SELECT auto_lock_enabled, auto_lock_delay FROM lock_auto_config WHERE lock_id = $1"
+            )
+            rows = stmt(lock_id)
+            for row in rows:
+                return {
+                    'auto_lock_enabled': bool(row[0]),
+                    'auto_lock_delay': row[1]
+                }
+            return {'auto_lock_enabled': True, 'auto_lock_delay': 5}  # 默认值
+    finally:
+        conn.close()
+
+
+def update_auto_lock_config(lock_id, auto_lock_enabled=True, auto_lock_delay=5):
+    """更新自动锁定配置"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            # 检查是否存在
+            cur.execute("SELECT lock_id FROM lock_auto_config WHERE lock_id = ?", (lock_id,))
+            exists = cur.fetchone()
+            
+            if exists:
+                cur.execute(
+                    "UPDATE lock_auto_config SET auto_lock_enabled = ?, auto_lock_delay = ?, updated_at = CURRENT_TIMESTAMP WHERE lock_id = ?",
+                    (1 if auto_lock_enabled else 0, auto_lock_delay, lock_id)
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO lock_auto_config (lock_id, auto_lock_enabled, auto_lock_delay) VALUES (?, ?, ?)",
+                    (lock_id, 1 if auto_lock_enabled else 0, auto_lock_delay)
+                )
+            conn.commit()
+        else:
+            # openGauss 处理
+            stmt_check = conn.prepare("SELECT lock_id FROM lock_auto_config WHERE lock_id = $1")
+            rows = stmt_check(lock_id)
+            exists = False
+            for _ in rows:
+                exists = True
+                break
+            
+            if exists:
+                stmt = conn.prepare("""
+                    UPDATE lock_auto_config 
+                    SET auto_lock_enabled = $2, auto_lock_delay = $3, updated_at = NOW()
+                    WHERE lock_id = $1
+                """)
+                stmt(lock_id, auto_lock_enabled, auto_lock_delay)
+            else:
+                stmt = conn.prepare("""
+                    INSERT INTO lock_auto_config (lock_id, auto_lock_enabled, auto_lock_delay, updated_at)
+                    VALUES ($1, $2, $3, NOW())
+                """)
+                stmt(lock_id, auto_lock_enabled, auto_lock_delay)
     finally:
         conn.close()
 
