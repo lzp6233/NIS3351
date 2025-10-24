@@ -147,16 +147,15 @@
     }
 
     .back-btn {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      padding: 10px 20px;
+      position: left;
+      top: calc(1.5vh + 0.5rem);
+      left: calc(1.5vw + 0.5rem);
       background: rgba(43, 74, 138, 0.9);
       color: white;
       text-decoration: none;
       border-radius: 8px;
       font-weight: 500;
-      transition: 0.3s;
+      transition: 0.18s;
       z-index: 2;
     }
 
@@ -173,10 +172,127 @@
       z-index: 1;
     }
 
+    /* 认证字段样式 */
+    .auth-fields {
+      margin-top: 15px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+    }
+
+    .image-preview {
+      margin-top: 10px;
+      max-width: 200px;
+      max-height: 200px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .image-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .btn-generate, .btn-config {
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: 10px;
+      transition: 0.3s;
+    }
+
+    .btn-generate:hover, .btn-config:hover {
+      background-color: #5a6268;
+      transform: translateY(-1px);
+    }
+
+    /* 实时更新按钮样式 */
+    .btn-realtime {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .btn-realtime.active {
+      background-color: #0056b3;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
+      transform: translateY(-2px);
+    }
+
+    /* 自动锁定配置样式 */
+    .auto-lock-section {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      border: 1px solid #e9ecef;
+    }
+
+    .auto-lock-section h3 {
+      margin-top: 0;
+      color: #2b4a8a;
+      font-size: 1.2em;
+    }
+
+    .auto-lock-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: center;
+    }
+
+    .auto-lock-controls label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 0;
+    }
+
+    .auto-lock-controls input[type="checkbox"] {
+      width: auto;
+      margin-bottom: 0;
+    }
+
+    .auto-lock-controls input[type="number"] {
+      width: 80px;
+      margin-bottom: 0;
+    }
+
+    /* 状态徽章样式 */
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.9em;
+      font-weight: 600;
+    }
+
+    .status-locked {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    .status-unlocked {
+      background-color: #28a745;
+      color: white;
+    }
+
     /* 响应式处理 */
     @media (max-width: 900px) {
       .info-grid {
         grid-template-columns: repeat(2, 1fr);
+      }
+      .auto-lock-controls {
+        flex-direction: column;
+        align-items: flex-start;
       }
     }
 
@@ -190,15 +306,15 @@
 <body>
   <div class="overlay"></div>
 
-  <a href="index.html" class="back-btn">← 返回主页</a>
   <div class="lock-wrapper">
+    <a href="index.html" class="back-btn">← 返回主页</a>
     <h1>🚪 智能门锁控制</h1>
     <p class="subtitle">远程控制、状态监测与家庭安全守护</p>
 
     <div class="info-grid">
       <div class="info-card">
         <div class="info-label">锁ID</div>
-        <div class="info-value" id="lockId">front_door</div>
+        <div class="info-value" id="lockId">Front_Door</div>
       </div>
       <div class="info-card">
         <div class="info-label">状态</div>
@@ -214,25 +330,93 @@
       </div>
     </div>
 
+    <div class="form-section">
+      <label for="unlockMethod">开锁方式</label>
+      <select id="unlockMethod" onchange="toggleAuthFields()">
+        <option value="PINCODE">PINCODE认证</option>
+        <option value="FACE">面部识别</option>
+        <option value="FINGERPRINT">指纹识别</option>
+      </select>
+
+      <!-- PINCODE认证字段 -->
+      <div id="pincodeFields" class="auth-fields">
+        <label for="usernameInput">用户名</label>
+        <input type="text" id="usernameInput" placeholder="请输入用户名（如：Dad, Mom）">
+        
+        <label for="passwordInput">密码</label>
+        <input type="password" id="passwordInput" placeholder="请输入密码">
+        
+        <label for="pinInput">PIN码</label>
+        <input type="password" id="pinInput" placeholder="请输入PIN码">
+      </div>
+
+      <!-- 面部识别字段 -->
+      <div id="faceFields" class="auth-fields" style="display: none;">
+        <label for="faceUsernameInput">用户名</label>
+        <input type="text" id="faceUsernameInput" placeholder="请输入用户名">
+        
+        <label for="faceImageInput">面部图像</label>
+        <input type="file" id="faceImageInput" accept="image/*" onchange="previewFaceImage()">
+        <div id="faceImagePreview" class="image-preview"></div>
+      </div>
+
+      <!-- 指纹识别字段 -->
+      <div id="fingerprintFields" class="auth-fields" style="display: none;">
+        <label for="fingerprintUsernameInput">用户名</label>
+        <input type="text" id="fingerprintUsernameInput" placeholder="请输入用户名">
+        
+        <label for="fingerprintInput">指纹数据</label>
+        <input type="text" id="fingerprintInput" placeholder="请输入指纹数据（模拟）">
+        <button type="button" onclick="generateFingerprint()" class="btn-generate">生成模拟指纹</button>
+      </div>
+
+      <!-- 通用字段 -->
+      <div id="generalFields" class="auth-fields" style="display: none;">
+        <label for="actorInput">操作用户</label>
+        <input type="text" id="actorInput" placeholder="请输入用户名称">
+      </div>
+    </div>
+
+    <!-- 注册新用户区域 -->
+    <div class="form-section" style="margin-top: 20px;">
+      <button id="toggleRegisterBtn" class="btn btn-generate" type="button">➕ 注册新用户</button>
+      <div id="registerSection" style="display: none; margin-top: 12px;">
+        <label for="regUsername">用户名</label>
+        <input type="text" id="regUsername" placeholder="输入用户名">
+
+        <label for="regPassword">密码</label>
+        <input type="password" id="regPassword" placeholder="输入密码">
+
+        <label for="regFaceInput">面部图像（可选）</label>
+        <input type="file" id="regFaceInput" accept="image/*" onchange="previewRegFace()">
+        <div id="regFacePreview" class="image-preview"></div>
+
+        <label for="regFingerprint">指纹数据（可选）</label>
+        <input type="text" id="regFingerprint" placeholder="指纹数据（可选）">
+
+        <div style="margin-top:8px;">
+          <button id="btnRegister" class="btn btn-unlock" type="button">注册</button>
+        </div>
+      </div>
+    </div>
+
     <div class="lock-actions">
       <button id="btnLock" class="btn btn-lock">🔒 上锁</button>
       <button id="btnUnlock" class="btn btn-unlock">🔓 解锁</button>
+      <button id="btnRealtime" class="btn btn-realtime">实时更新：关闭</button>
     </div>
 
-    <div class="form-section">
-      <label for="unlockMethod">开锁方式</label>
-      <select id="unlockMethod">
-        <option value="PINCODE">PINCODE</option>
-        <option value="APP">APP</option>
-        <option value="FINGERPRINT">FINGERPRINT</option>
-        <option value="REMOTE">REMOTE</option>
-      </select>
-
-      <label for="actorInput">操作用户</label>
-      <input type="text" id="actorInput" placeholder="请输入用户名称">
-
-      <label for="pinInput">PIN码</label>
-      <input type="password" id="pinInput" placeholder="如需PINCODE方式请填写">
+    <!-- 自动锁定配置 -->
+    <div class="auto-lock-section">
+      <h3>自动锁定配置</h3>
+      <div class="auto-lock-controls">
+        <label>
+          <input type="checkbox" id="autoLockEnabled" checked> 启用自动锁定
+        </label>
+        <label for="autoLockDelay">延迟时间（秒）</label>
+        <input type="number" id="autoLockDelay" value="5" min="1" max="60">
+        <button type="button" onclick="updateAutoLockConfig()" class="btn-config">更新配置</button>
+      </div>
     </div>
   </div>
 
