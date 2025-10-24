@@ -10,6 +10,7 @@ import json
 import random
 import sys
 import os
+import threading
 from datetime import datetime
 import paho.mqtt.client as mqtt
 
@@ -30,9 +31,38 @@ class LockState:
         self.battery = 100
         self.last_method = None
         self.last_actor = None
+        self.auto_lock_timer = None
+        self.auto_lock_delay = 5  # 默认5秒自动锁定
 
     def drain_battery(self, amount=1):
         self.battery = max(0, self.battery - amount)
+    
+    def start_auto_lock_timer(self, client, delay=None):
+        """启动自动锁定定时器"""
+        if self.auto_lock_timer:
+            self.auto_lock_timer.cancel()
+        
+        delay = delay or self.auto_lock_delay
+        self.auto_lock_timer = threading.Timer(delay, self._auto_lock, args=[client])
+        self.auto_lock_timer.start()
+        print(f"⏰ 自动锁定定时器已启动，{delay}秒后自动上锁")
+    
+    def _auto_lock(self, client):
+        """自动锁定执行函数"""
+        if not self.locked:  # 只有在解锁状态下才执行自动锁定
+            self.locked = True
+            self.last_method = "AUTO"
+            self.last_actor = "System"
+            publish_state(client)
+            publish_event(client, "auto_lock", detail=f"自动锁定（{self.auto_lock_delay}秒后）")
+            print(f"🔒 自动锁定已执行")
+    
+    def cancel_auto_lock_timer(self):
+        """取消自动锁定定时器"""
+        if self.auto_lock_timer:
+            self.auto_lock_timer.cancel()
+            self.auto_lock_timer = None
+            print("❌ 自动锁定定时器已取消")
 
 
 state = LockState()
@@ -103,6 +133,8 @@ def on_message(client, userdata, msg):
                 state.locked = False
                 publish_state(client)
                 publish_event(client, "unlock_success")
+                # 启动自动锁定定时器
+                state.start_auto_lock_timer(client)
             else:
                 publish_event(client, "unlock_fail", detail="invalid_pin")
         else:
@@ -110,8 +142,12 @@ def on_message(client, userdata, msg):
             state.locked = False
             publish_state(client)
             publish_event(client, "unlock_success")
+            # 启动自动锁定定时器
+            state.start_auto_lock_timer(client)
     elif action == "lock":
         state.locked = True
+        # 取消自动锁定定时器（如果存在）
+        state.cancel_auto_lock_timer()
         publish_state(client)
         publish_event(client, "lock")
     else:
