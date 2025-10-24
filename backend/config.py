@@ -28,6 +28,12 @@ DB_CONFIG = {
     "port": int(os.getenv("DB_PORT", "7654"))
 }
 
+# 从PINCODE配置文件读取
+try:
+    from pincode_config import get_pincode
+    GLOBAL_PINCODE = get_pincode()
+except ImportError:
+    GLOBAL_PINCODE = os.getenv("GLOBAL_PINCODE", "041117")
 
 # 数据库类型：'opengauss' 或 'sqlite'（本地默认 sqlite，便于零依赖运行）
 DB_TYPE = os.getenv("DB_TYPE", "sqlite")

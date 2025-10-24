@@ -56,7 +56,7 @@ def on_message(client, userdata, msg):
                 # 期望: { locked: true/false, method, actor, battery, ts }
                 upsert_lock_state(
                     lock_id=lock_id,
-                    locked=bool(data.get('locked', True)),
+                    locked=bool(data.get('locked', False)),  # 默认解锁状态
                     method=data.get('method'),
                     actor=data.get('actor'),
                     battery=data.get('battery'),

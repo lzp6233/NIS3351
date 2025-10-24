@@ -3,9 +3,9 @@
 支持 openGauss 的 SCRAM-SHA-256 认证
 """
 
-import py_opengauss
 import sqlite3
 from config import DB_CONFIG, DB_TYPE, DB_PATH
+import py_opengauss
 
 
 def get_connection():
@@ -490,6 +490,23 @@ def get_all_lock_users():
             stmt = conn.prepare("SELECT username FROM lock_users")
             rows = stmt()
             return [r[0] for r in rows]
+    finally:
+        conn.close()
+
+
+def delete_lock_user(username):
+    """删除指定用户"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute("DELETE FROM lock_users WHERE username = ?", (username,))
+            conn.commit()
+            return cur.rowcount > 0
+        else:
+            stmt = conn.prepare("DELETE FROM lock_users WHERE username = $1")
+            stmt(username)
+            return True
     finally:
         conn.close()
 

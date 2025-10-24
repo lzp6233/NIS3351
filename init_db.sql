@@ -67,8 +67,8 @@ SELECT 'Creating tables for smart lock...' AS status;
 CREATE TABLE IF NOT EXISTS lock_state (
     lock_id VARCHAR(50) PRIMARY KEY,
     locked BOOLEAN NOT NULL,
-    method VARCHAR(20),                 -- 开锁方式：PINCODE/FINGERPRINT/APP/REMOTE/KEY
-    actor VARCHAR(64),                  -- 操作用户：如 Dad, Guest_123
+    method VARCHAR(20),                 -- 开锁方式：PINCODE/FINGERPRINT/FACE
+    actor VARCHAR(64),                 
     battery INTEGER DEFAULT 100,        -- 电量百分比
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
