@@ -97,6 +97,30 @@ def get_connection():
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # 烟雾报警器状态表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS smoke_alarm_state (
+                alarm_id VARCHAR(50) PRIMARY KEY,
+                location VARCHAR(50) NOT NULL,
+                smoke_level FLOAT DEFAULT 0.0,
+                alarm_active BOOLEAN DEFAULT 0,
+                battery INTEGER DEFAULT 100,
+                test_mode BOOLEAN DEFAULT 0,
+                sensitivity VARCHAR(20) DEFAULT 'medium',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # 烟雾报警器事件表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS smoke_alarm_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alarm_id VARCHAR(50) NOT NULL,
+                event_type VARCHAR(32) NOT NULL,
+                smoke_level FLOAT,
+                detail TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
         return conn
 
@@ -955,6 +979,288 @@ def get_ac_events(ac_id, limit=50):
                     'new_value': r[4],
                     'detail': r[5],
                     'timestamp': r[6].isoformat() if r[6] else None
+                })
+            return result
+    finally:
+        conn.close()
+
+
+# ==================== 烟雾报警器功能 ====================
+
+def upsert_smoke_alarm_state(alarm_id, location=None, smoke_level=None, alarm_active=None,
+                              battery=None, test_mode=None, sensitivity=None):
+    """更新或插入烟雾报警器状态"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            # 检查是否存在
+            cur.execute("SELECT alarm_id FROM smoke_alarm_state WHERE alarm_id = ?", (alarm_id,))
+            exists = cur.fetchone()
+
+            if exists:
+                # 更新
+                updates = []
+                values = []
+                if location is not None:
+                    updates.append("location = ?")
+                    values.append(location)
+                if smoke_level is not None:
+                    updates.append("smoke_level = ?")
+                    values.append(smoke_level)
+                if alarm_active is not None:
+                    updates.append("alarm_active = ?")
+                    values.append(1 if alarm_active else 0)
+                if battery is not None:
+                    updates.append("battery = ?")
+                    values.append(battery)
+                if test_mode is not None:
+                    updates.append("test_mode = ?")
+                    values.append(1 if test_mode else 0)
+                if sensitivity is not None:
+                    updates.append("sensitivity = ?")
+                    values.append(sensitivity)
+
+                if updates:
+                    updates.append("updated_at = CURRENT_TIMESTAMP")
+                    values.append(alarm_id)
+                    sql = f"UPDATE smoke_alarm_state SET {', '.join(updates)} WHERE alarm_id = ?"
+                    cur.execute(sql, values)
+            else:
+                # 插入
+                cur.execute(
+                    """INSERT INTO smoke_alarm_state
+                       (alarm_id, location, smoke_level, alarm_active, battery, test_mode, sensitivity)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (alarm_id, location or 'unknown',
+                     smoke_level or 0.0,
+                     1 if alarm_active else 0,
+                     battery or 100,
+                     1 if test_mode else 0,
+                     sensitivity or 'medium')
+                )
+            conn.commit()
+        else:
+            # openGauss 处理
+            stmt_check = conn.prepare("SELECT alarm_id FROM smoke_alarm_state WHERE alarm_id = $1")
+            rows = stmt_check(alarm_id)
+            exists = False
+            for _ in rows:
+                exists = True
+                break
+
+            if exists:
+                # 更新
+                updates = []
+                values = [alarm_id]  # WHERE alarm_id = $1
+                param_count = 2
+
+                if location is not None:
+                    updates.append(f"location = ${param_count}")
+                    values.append(location)
+                    param_count += 1
+                if smoke_level is not None:
+                    updates.append(f"smoke_level = ${param_count}")
+                    values.append(smoke_level)
+                    param_count += 1
+                if alarm_active is not None:
+                    updates.append(f"alarm_active = ${param_count}")
+                    values.append(alarm_active)
+                    param_count += 1
+                if battery is not None:
+                    updates.append(f"battery = ${param_count}")
+                    values.append(battery)
+                    param_count += 1
+                if test_mode is not None:
+                    updates.append(f"test_mode = ${param_count}")
+                    values.append(test_mode)
+                    param_count += 1
+                if sensitivity is not None:
+                    updates.append(f"sensitivity = ${param_count}")
+                    values.append(sensitivity)
+                    param_count += 1
+
+                if updates:
+                    updates.append("updated_at = NOW()")
+                    sql = f"UPDATE smoke_alarm_state SET {', '.join(updates)} WHERE alarm_id = $1"
+                    stmt = conn.prepare(sql)
+                    stmt(*values)
+            else:
+                # 插入
+                stmt = conn.prepare("""
+                    INSERT INTO smoke_alarm_state
+                    (alarm_id, location, smoke_level, alarm_active, battery, test_mode, sensitivity, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                """)
+                stmt(alarm_id, location or 'unknown', smoke_level or 0.0,
+                     alarm_active or False, battery or 100, test_mode or False, sensitivity or 'medium')
+    finally:
+        conn.close()
+
+
+def get_smoke_alarm_state(alarm_id):
+    """获取烟雾报警器状态"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT alarm_id, location, smoke_level, alarm_active, battery,
+                          test_mode, sensitivity, updated_at
+                   FROM smoke_alarm_state WHERE alarm_id = ?""",
+                (alarm_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                return {
+                    'alarm_id': row[0],
+                    'location': row[1],
+                    'smoke_level': row[2],
+                    'alarm_active': bool(row[3]),
+                    'battery': row[4],
+                    'test_mode': bool(row[5]),
+                    'sensitivity': row[6],
+                    'updated_at': row[7]
+                }
+            return None
+        else:
+            # openGauss 处理
+            stmt = conn.prepare("""
+                SELECT alarm_id, location, smoke_level, alarm_active, battery,
+                       test_mode, sensitivity, updated_at
+                FROM smoke_alarm_state WHERE alarm_id = $1
+            """)
+            rows = stmt(alarm_id)
+            for row in rows:
+                return {
+                    'alarm_id': row[0],
+                    'location': row[1],
+                    'smoke_level': row[2],
+                    'alarm_active': bool(row[3]),
+                    'battery': row[4],
+                    'test_mode': bool(row[5]),
+                    'sensitivity': row[6],
+                    'updated_at': row[7].isoformat() if row[7] else None
+                }
+            return None
+    finally:
+        conn.close()
+
+
+def get_all_smoke_alarms():
+    """获取所有烟雾报警器状态"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT alarm_id, location, smoke_level, alarm_active, battery,
+                          test_mode, sensitivity, updated_at
+                   FROM smoke_alarm_state"""
+            )
+            rows = cur.fetchall()
+            return [
+                {
+                    'alarm_id': r[0],
+                    'location': r[1],
+                    'smoke_level': r[2],
+                    'alarm_active': bool(r[3]),
+                    'battery': r[4],
+                    'test_mode': bool(r[5]),
+                    'sensitivity': r[6],
+                    'updated_at': r[7]
+                } for r in rows
+            ]
+        else:
+            # openGauss 处理
+            stmt = conn.prepare("""
+                SELECT alarm_id, location, smoke_level, alarm_active, battery,
+                       test_mode, sensitivity, updated_at
+                FROM smoke_alarm_state
+            """)
+            rows = stmt()
+            result = []
+            for r in rows:
+                result.append({
+                    'alarm_id': r[0],
+                    'location': r[1],
+                    'smoke_level': r[2],
+                    'alarm_active': bool(r[3]),
+                    'battery': r[4],
+                    'test_mode': bool(r[5]),
+                    'sensitivity': r[6],
+                    'updated_at': r[7].isoformat() if r[7] else None
+                })
+            return result
+    finally:
+        conn.close()
+
+
+def insert_smoke_alarm_event(alarm_id, event_type, smoke_level=None, detail=None):
+    """记录烟雾报警器事件"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO smoke_alarm_events (alarm_id, event_type, smoke_level, detail)
+                   VALUES (?, ?, ?, ?)""",
+                (alarm_id, event_type, smoke_level, detail)
+            )
+            conn.commit()
+        else:
+            # openGauss 处理
+            stmt = conn.prepare("""
+                INSERT INTO smoke_alarm_events (alarm_id, event_type, smoke_level, detail, timestamp)
+                VALUES ($1, $2, $3, $4, NOW())
+            """)
+            stmt(alarm_id, event_type, smoke_level, detail)
+    finally:
+        conn.close()
+
+
+def get_smoke_alarm_events(alarm_id, limit=50):
+    """获取烟雾报警器事件历史"""
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT id, alarm_id, event_type, smoke_level, detail, timestamp
+                   FROM smoke_alarm_events WHERE alarm_id = ?
+                   ORDER BY timestamp DESC
+                   LIMIT ?""",
+                (alarm_id, limit)
+            )
+            rows = cur.fetchall()
+            return [
+                {
+                    'id': r[0],
+                    'alarm_id': r[1],
+                    'event_type': r[2],
+                    'smoke_level': r[3],
+                    'detail': r[4],
+                    'timestamp': r[5]
+                } for r in rows
+            ]
+        else:
+            # openGauss 处理
+            stmt = conn.prepare("""
+                SELECT id, alarm_id, event_type, smoke_level, detail, timestamp
+                FROM smoke_alarm_events WHERE alarm_id = $1
+                ORDER BY timestamp DESC
+                LIMIT $2
+            """)
+            rows = stmt(alarm_id, limit)
+            result = []
+            for r in rows:
+                result.append({
+                    'id': r[0],
+                    'alarm_id': r[1],
+                    'event_type': r[2],
+                    'smoke_level': r[3],
+                    'detail': r[4],
+                    'timestamp': r[5].isoformat() if r[5] else None
                 })
             return result
     finally:

@@ -16,17 +16,18 @@ from config import FLASK_HOST, FLASK_PORT
 # 导入各设备模块的路由蓝图
 from routes.air_conditioner import air_conditioner_bp
 from routes.lock import lock_bp
+from routes.smoke_alarm import smoke_alarm_bp
 
 app = Flask(__name__)
 
 # 配置 CORS 以允许来自前端的请求
 # 开发环境设置 max_age=0 避免浏览器缓存 CORS 预检请求
 CORS(app, 
-     resources={r"/*": {"origins": "*"}},
-     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     supports_credentials=False,
-     max_age=0)
+    resources={r"/*": {"origins": "*"}},
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    supports_credentials=False,
+    max_age=0)
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 
@@ -61,6 +62,9 @@ app.register_blueprint(air_conditioner_bp)
 # 智能门锁模块 - 负责人：[门锁模块负责人]
 app.register_blueprint(lock_bp)
 
+# 烟雾报警器模块
+app.register_blueprint(smoke_alarm_bp)
+
 
 @app.route("/")
 def index():
@@ -86,6 +90,17 @@ def index():
                     "/locks/<lock_id>/state": "获取门锁状态",
                     "/locks/<lock_id>/events": "获取门锁事件历史",
                     "/locks/<lock_id>/command": "发送门锁控制命令"
+                }
+            },
+            "smoke_alarm": {
+                "description": "烟雾报警器模块",
+                "endpoints": {
+                    "/smoke_alarms": "获取所有烟雾报警器列表",
+                    "/smoke_alarms/<alarm_id>": "获取烟雾报警器状态",
+                    "/smoke_alarms/<alarm_id>/test": "启动/停止测试模式",
+                    "/smoke_alarms/<alarm_id>/sensitivity": "更新灵敏度设置",
+                    "/smoke_alarms/<alarm_id>/events": "获取事件历史",
+                    "/smoke_alarms/<alarm_id>/acknowledge": "确认/清除报警"
                 }
             }
         }

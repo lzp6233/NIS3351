@@ -150,8 +150,62 @@ VALUES
     ('ac_room1', 'INIT', 'Air conditioner initialized'),
     ('ac_room2', 'INIT', 'Air conditioner initialized');
 
+-- 11. 烟雾报警器：智能烟雾报警器表结构
+SELECT 'Creating tables for smoke alarm...' AS status;
+
+-- 烟雾报警器状态表
+CREATE TABLE IF NOT EXISTS smoke_alarm_state (
+    alarm_id VARCHAR(50) PRIMARY KEY,
+    location VARCHAR(50) NOT NULL,              -- 位置：living_room/bedroom/kitchen等
+    smoke_level FLOAT DEFAULT 0.0,              -- 烟雾浓度 (0-100)
+    alarm_active BOOLEAN DEFAULT false,         -- 报警状态
+    battery INTEGER DEFAULT 100,                -- 电池电量百分比
+    test_mode BOOLEAN DEFAULT false,            -- 测试模式
+    sensitivity VARCHAR(20) DEFAULT 'medium',   -- 灵敏度：low/medium/high
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 烟雾报警器事件表
+CREATE TABLE IF NOT EXISTS smoke_alarm_events (
+    id SERIAL PRIMARY KEY,
+    alarm_id VARCHAR(50) NOT NULL,
+    event_type VARCHAR(32) NOT NULL,            -- ALARM_TRIGGERED/ALARM_CLEARED/TEST_STARTED/LOW_BATTERY等
+    smoke_level FLOAT,                          -- 触发时的烟雾浓度
+    detail TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_smoke_alarm_events_alarm_time
+ON smoke_alarm_events(alarm_id, timestamp DESC);
+
+-- 初始化烟雾报警器（为主要房间创建报警器）
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM smoke_alarm_state WHERE alarm_id = 'smoke_living_room') THEN
+        INSERT INTO smoke_alarm_state (alarm_id, location, smoke_level, alarm_active, battery, sensitivity)
+        VALUES ('smoke_living_room', 'living_room', 0.0, false, 100, 'medium');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM smoke_alarm_state WHERE alarm_id = 'smoke_bedroom') THEN
+        INSERT INTO smoke_alarm_state (alarm_id, location, smoke_level, alarm_active, battery, sensitivity)
+        VALUES ('smoke_bedroom', 'bedroom', 0.0, false, 100, 'medium');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM smoke_alarm_state WHERE alarm_id = 'smoke_kitchen') THEN
+        INSERT INTO smoke_alarm_state (alarm_id, location, smoke_level, alarm_active, battery, sensitivity)
+        VALUES ('smoke_kitchen', 'kitchen', 0.0, false, 100, 'high');
+    END IF;
+END $$;
+
+-- 插入初始化事件
+INSERT INTO smoke_alarm_events (alarm_id, event_type, smoke_level, detail)
+VALUES
+    ('smoke_living_room', 'INIT', 0.0, 'Smoke alarm initialized'),
+    ('smoke_bedroom', 'INIT', 0.0, 'Smoke alarm initialized'),
+    ('smoke_kitchen', 'INIT', 0.0, 'Smoke alarm initialized');
+
 -- 完成提示
 SELECT '✓ Database initialization completed!' AS status;
 SELECT 'Database: smart_home' AS info;
-SELECT 'Tables: temperature_humidity_data, lock_state, lock_events, ac_state, ac_events' AS info;
+SELECT 'Tables: temperature_humidity_data, lock_state, lock_events, ac_state, ac_events, smoke_alarm_state, smoke_alarm_events' AS info;
 SELECT COUNT(*) || ' test records inserted' AS info FROM temperature_humidity_data;
