@@ -17,17 +17,18 @@ from config import FLASK_HOST, FLASK_PORT
 from routes.air_conditioner import air_conditioner_bp
 from routes.lock import lock_bp
 from routes.lighting import lighting_bp
+from routes.smoke_alarm import smoke_alarm_bp
 
 app = Flask(__name__)
 
 # 配置 CORS 以允许来自前端的请求
 # 开发环境设置 max_age=0 避免浏览器缓存 CORS 预检请求
 CORS(app, 
-     resources={r"/*": {"origins": "*"}},
-     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     supports_credentials=False,
-     max_age=0)
+    resources={r"/*": {"origins": "*"}},
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    supports_credentials=False,
+    max_age=0)
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 
@@ -64,6 +65,8 @@ app.register_blueprint(lock_bp)
 
 # 全屋灯具控制模块 - 负责人：lzx
 app.register_blueprint(lighting_bp)
+# 烟雾报警器模块
+app.register_blueprint(smoke_alarm_bp)
 
 
 @app.route("/")
@@ -102,6 +105,15 @@ def index():
                     "/lighting/<light_id>/events": "获取灯具事件历史",
                     "/lighting/<light_id>/auto-adjust": "智能调节灯具亮度",
                     "/lighting/batch-control": "批量控制多个灯具"
+            "smoke_alarm": {
+                "description": "烟雾报警器模块",
+                "endpoints": {
+                    "/smoke_alarms": "获取所有烟雾报警器列表",
+                    "/smoke_alarms/<alarm_id>": "获取烟雾报警器状态",
+                    "/smoke_alarms/<alarm_id>/test": "启动/停止测试模式",
+                    "/smoke_alarms/<alarm_id>/sensitivity": "更新灵敏度设置",
+                    "/smoke_alarms/<alarm_id>/events": "获取事件历史",
+                    "/smoke_alarms/<alarm_id>/acknowledge": "确认/清除报警"
                 }
             }
             # ------------------------------------------------------------------------------------------------------

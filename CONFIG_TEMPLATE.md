@@ -63,6 +63,27 @@ MQTT_PORT=1883
 - **MQTT_BROKER**: MQTT Broker 地址，通常是 `localhost`
 - **MQTT_PORT**: MQTT Broker 端口，默认是 `1883`
 
+## 模块配置说明
+
+### 温湿度传感器模块
+- 使用 MQTT 主题：`home/+/temperature_humidity`
+- 模拟器：`simulator/sensor_sim.py`
+
+### 空调控制模块
+- 使用 MQTT 主题：相关房间的温湿度数据
+- 数据库表：`ac_state`, `ac_events`
+
+### 智能门锁模块
+- 使用 MQTT 主题：`home/lock/+/state`, `home/lock/+/event`, `home/lock/+/cmd`
+- 数据库表：`lock_state`, `lock_events`, `lock_users`, `lock_auto_config`
+- 模拟器：`simulator/lock_sim.py`
+
+### 烟雾报警器模块
+- 使用 MQTT 主题：`home/smoke_alarm/+/state`, `home/smoke_alarm/+/event`
+- 数据库表：`smoke_alarm_state`, `smoke_alarm_events`
+- 模拟器：`simulator/smoke_alarm_sim.py`
+- 默认报警器：smoke_living_room（客厅）、smoke_bedroom（卧室）、smoke_kitchen（厨房）
+
 ## 快速配置步骤
 
 1. 复制配置模板：

@@ -6,6 +6,8 @@ MQTT 客户端模块
 import paho.mqtt.client as mqtt
 import json
 from database import insert_sensor_data, upsert_lock_state, insert_lock_event, upsert_lighting_state, insert_lighting_event
+from database import (insert_sensor_data, upsert_lock_state, insert_lock_event,
+                     upsert_smoke_alarm_state, insert_smoke_alarm_event)
 from config import MQTT_BROKER, MQTT_PORT, MQTT_TOPIC
 
 
@@ -38,6 +40,10 @@ def on_connect(client, userdata, flags, rc):
         client.subscribe("home/lighting/+/event")
         print("✓ 已订阅主题: home/lighting/+/state, home/lighting/+/event")
         # ------------------------------------------------------------------------------------------------------
+        # 烟雾报警器状态与事件
+        client.subscribe("home/smoke_alarm/+/state")
+        client.subscribe("home/smoke_alarm/+/event")
+        print("✓ 已订阅主题: home/smoke_alarm/+/state, home/smoke_alarm/+/event")
     else:
         print(f"✗ 连接失败，返回码: {rc}")
 
@@ -45,11 +51,12 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     """
     消息回调：处理温湿度、门锁与灯具数据
+    消息回调：处理温湿度、门锁和烟雾报警器数据
     """
     try:
         topic = msg.topic
         payload = msg.payload.decode()
-        
+
         # 门锁主题处理
         if topic.startswith("home/lock/"):
             parts = topic.split('/')
@@ -112,6 +119,36 @@ def on_message(client, userdata, msg):
             return
         # ------------------------------------------------------------------------------------------------------    
 
+        # 烟雾报警器主题处理
+        if topic.startswith("home/smoke_alarm/"):
+            parts = topic.split('/')
+            alarm_id = parts[2] if len(parts) > 2 else 'smoke_unknown'
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                data = {}
+            if topic.endswith('/state'):
+                # 期望: { smoke_level: float, alarm_active: bool, battery: int, test_mode: bool, location: str }
+                upsert_smoke_alarm_state(
+                    alarm_id=alarm_id,
+                    location=data.get('location'),
+                    smoke_level=data.get('smoke_level'),
+                    alarm_active=bool(data.get('alarm_active', False)),
+                    battery=data.get('battery'),
+                    test_mode=bool(data.get('test_mode', False)),
+                    sensitivity=data.get('sensitivity')
+                )
+                print(f"📨 [smoke:{alarm_id}] smoke_level={data.get('smoke_level')} alarm={data.get('alarm_active')} battery={data.get('battery')}%")
+            elif topic.endswith('/event'):
+                insert_smoke_alarm_event(
+                    alarm_id=alarm_id,
+                    event_type=str(data.get('type', 'event')),
+                    smoke_level=data.get('smoke_level'),
+                    detail=json.dumps(data.get('detail')) if isinstance(data.get('detail'), (dict, list)) else data.get('detail')
+                )
+                print(f"📨 [smoke:{alarm_id}] event {data.get('type')}")
+            return
+
         # 温湿度主题处理
         device_id = parse_device_id(topic)
         try:
@@ -120,7 +157,7 @@ def on_message(client, userdata, msg):
             data = eval(payload)
         insert_sensor_data(data, device_id)
         print(f"📨 [{device_id}] 温度: {data['temperature']}°C, 湿度: {data['humidity']}%")
-        
+
     except Exception as e:
         print(f"✗ 处理消息时出错: {e}")
         print(f"  主题: {msg.topic}")

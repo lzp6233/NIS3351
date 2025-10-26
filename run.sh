@@ -12,6 +12,9 @@ python simulator/sensor_sim.py &
 # 启动门锁模拟器（单把 front_door）
 python simulator/lock_sim.py &
 
+# 启动烟雾报警器模拟器
+python simulator/smoke_alarm_sim.py &
+
 # 启动前端服务器
 cd frontend && python3 -m http.server 8000 &
 
