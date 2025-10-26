@@ -150,8 +150,69 @@ VALUES
     ('ac_room1', 'INIT', 'Air conditioner initialized'),
     ('ac_room2', 'INIT', 'Air conditioner initialized');
 
+-- 全屋灯具控制：智能灯具表结构
+SELECT 'Creating tables for smart lighting...' AS status;
+
+-- 灯具状态表
+CREATE TABLE IF NOT EXISTS lighting_state (
+    light_id VARCHAR(50) PRIMARY KEY,
+    device_id VARCHAR(50) NOT NULL,
+    power BOOLEAN DEFAULT false,
+    brightness INTEGER DEFAULT 50,           -- 亮度百分比 0-100
+    auto_mode BOOLEAN DEFAULT false,         -- 智能调节模式
+    room_brightness FLOAT,                   -- 房间亮度传感器读数
+    color_temp INTEGER DEFAULT 4000,         -- 色温 (K)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 灯具事件表（操作历史）
+CREATE TABLE IF NOT EXISTS lighting_events (
+    id SERIAL PRIMARY KEY,
+    light_id VARCHAR(50) NOT NULL,
+    event_type VARCHAR(32) NOT NULL,          -- power_on/power_off/brightness_change/auto_mode_change
+    old_value TEXT,
+    new_value TEXT,
+    detail TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_lighting_events_light_time
+ON lighting_events(light_id, timestamp DESC);
+
+-- 初始化灯具状态（为每个房间创建灯具，仅在不存在时插入）
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM lighting_state WHERE light_id = 'light_room1') THEN
+        INSERT INTO lighting_state (light_id, device_id, power, brightness, auto_mode, color_temp)
+        VALUES ('light_room1', 'room1', false, 50, false, 4000);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM lighting_state WHERE light_id = 'light_room2') THEN
+        INSERT INTO lighting_state (light_id, device_id, power, brightness, auto_mode, color_temp)
+        VALUES ('light_room2', 'room2', false, 50, false, 4000);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM lighting_state WHERE light_id = 'light_living') THEN
+        INSERT INTO lighting_state (light_id, device_id, power, brightness, auto_mode, color_temp)
+        VALUES ('light_living', 'living', false, 50, false, 4000);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM lighting_state WHERE light_id = 'light_kitchen') THEN
+        INSERT INTO lighting_state (light_id, device_id, power, brightness, auto_mode, color_temp)
+        VALUES ('light_kitchen', 'kitchen', false, 50, false, 4000);
+    END IF;
+END $$;
+
+-- 插入初始化事件
+INSERT INTO lighting_events (light_id, event_type, detail)
+VALUES 
+    ('light_room1', 'INIT', 'Lighting initialized'),
+    ('light_room2', 'INIT', 'Lighting initialized'),
+    ('light_living', 'INIT', 'Lighting initialized'),
+    ('light_kitchen', 'INIT', 'Lighting initialized');
+
 -- 完成提示
 SELECT '✓ Database initialization completed!' AS status;
 SELECT 'Database: smart_home' AS info;
-SELECT 'Tables: temperature_humidity_data, lock_state, lock_events, ac_state, ac_events' AS info;
+SELECT 'Tables: temperature_humidity_data, lock_state, lock_events, ac_state, ac_events, lighting_state, lighting_events' AS info;
 SELECT COUNT(*) || ' test records inserted' AS info FROM temperature_humidity_data;

@@ -16,6 +16,7 @@ from config import FLASK_HOST, FLASK_PORT
 # 导入各设备模块的路由蓝图
 from routes.air_conditioner import air_conditioner_bp
 from routes.lock import lock_bp
+from routes.lighting import lighting_bp
 
 app = Flask(__name__)
 
@@ -61,6 +62,9 @@ app.register_blueprint(air_conditioner_bp)
 # 智能门锁模块 - 负责人：[门锁模块负责人]
 app.register_blueprint(lock_bp)
 
+# 全屋灯具控制模块 - 负责人：lzx
+app.register_blueprint(lighting_bp)
+
 
 @app.route("/")
 def index():
@@ -87,7 +91,20 @@ def index():
                     "/locks/<lock_id>/events": "获取门锁事件历史",
                     "/locks/<lock_id>/command": "发送门锁控制命令"
                 }
+            },
+            # ------------------------------------------------------------------------------------------------------
+            "lighting": {
+                "description": "全屋灯具控制模块",
+                "endpoints": {
+                    "/lighting": "获取所有灯具列表",
+                    "/lighting/<light_id>": "获取灯具状态",
+                    "/lighting/<light_id>/control": "控制灯具",
+                    "/lighting/<light_id>/events": "获取灯具事件历史",
+                    "/lighting/<light_id>/auto-adjust": "智能调节灯具亮度",
+                    "/lighting/batch-control": "批量控制多个灯具"
+                }
             }
+            # ------------------------------------------------------------------------------------------------------
         }
     })
 
@@ -99,6 +116,7 @@ if __name__ == "__main__":
     print("已加载模块:")
     print("  ❄️  空调模块 (routes/air_conditioner.py) - 负责人: lzp")
     print("  🔒 智能门锁模块 (routes/lock.py)")
+    print("  💡 全屋灯具控制模块 (routes/lighting.py) - 负责人: lzx")
     print("="*60)
     print("API 端点:")
     print("  空调:")
@@ -111,5 +129,13 @@ if __name__ == "__main__":
     print("    GET  /locks/<lock_id>/state    - 获取门锁状态")
     print("    GET  /locks/<lock_id>/events   - 获取门锁事件")
     print("    POST /locks/<lock_id>/command  - 发送控制命令")
+    # ------------------------------------------------------------------------------------------------------
+    print("  灯具:")
+    print("    GET  /lighting                 - 获取灯具列表")
+    print("    GET  /lighting/<light_id>     - 获取灯具状态")
+    print("    POST /lighting/<light_id>/control - 控制灯具")
+    print("    POST /lighting/<light_id>/auto-adjust - 智能调节")
+    print("    POST /lighting/batch-control   - 批量控制")
+    # ------------------------------------------------------------------------------------------------------
     print("="*60)
     socketio.run(app, host=FLASK_HOST, port=FLASK_PORT, debug=False, allow_unsafe_werkzeug=True)

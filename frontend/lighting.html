@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全屋灯具控制 - 智能家居</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="page-header">
+            <a href="index.html" class="back-btn">← 返回主页</a>
+            <h1>💡 全屋灯具控制</h1>
+            <p>智能调节模式：根据房间亮度自动调节灯具亮度</p>
+        </header>
+        
+        <div class="controls">
+            <label for="lightSelect">选择灯具：</label>
+            <select id="lightSelect">
+                <option value="">请选择灯具</option>
+            </select>
+            <button id="refreshBtn">刷新数据</button>
+            <button id="batchControlBtn">批量控制</button>
+            <a href="index.html" class="nav-btn">🏠 主菜单</a>
+            <span id="status" class="status">正在加载...</span>
+        </div>
+        
+        <!-- 统计信息 -->
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">当前亮度</div>
+                <div class="stat-value" id="currentBrightness">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">房间亮度</div>
+                <div class="stat-value" id="currentRoomBrightness">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">智能模式</div>
+                <div class="stat-value" id="autoModeStatus">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">色温</div>
+                <div class="stat-value" id="colorTemp">--</div>
+            </div>
+        </div>
+        
+        <!-- 全局控制 -->
+        <div class="global-controls">
+            <h3>全局控制</h3>
+            <div class="control-group">
+                <button class="control-btn" id="allOnBtn">全屋开灯</button>
+                <button class="control-btn" id="allOffBtn">全屋关灯</button>
+                <button class="control-btn" id="autoModeBtn">智能调节</button>
+                <button class="control-btn" id="manualModeBtn">手动模式</button>
+            </div>
+        </div>
+        
+        <!-- 灯具列表 -->
+        <div class="lighting-grid" id="lightingGrid">
+            <!-- 灯具卡片将通过JavaScript动态生成 -->
+        </div>
+        
+        <!-- 批量控制模态框 -->
+        <div id="batchModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>批量控制</h3>
+                <div class="batch-controls">
+                    <div class="control-item">
+                        <label>开关状态：</label>
+                        <select id="batchPower">
+                            <option value="">保持当前</option>
+                            <option value="true">全部开启</option>
+                            <option value="false">全部关闭</option>
+                        </select>
+                    </div>
+                    <div class="control-item">
+                        <label>亮度：</label>
+                        <input type="range" id="batchBrightness" min="0" max="100" value="50">
+                        <span id="batchBrightnessValue">50%</span>
+                    </div>
+                    <div class="control-item">
+                        <label>色温：</label>
+                        <input type="range" id="batchColorTemp" min="2700" max="6500" value="4000">
+                        <span id="batchColorTempValue">4000K</span>
+                    </div>
+                    <div class="control-item">
+                        <label>智能模式：</label>
+                        <select id="batchAutoMode">
+                            <option value="">保持当前</option>
+                            <option value="true">全部开启</option>
+                            <option value="false">全部关闭</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button id="applyBatchBtn">应用设置</button>
+                    <button id="cancelBatchBtn">取消</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="lighting.js"></script>
+</body>
+</html>
+
