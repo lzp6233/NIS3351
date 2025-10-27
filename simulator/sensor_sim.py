@@ -82,7 +82,6 @@ def generate_sensor_data(device_id):
         if mode == 'cool':
             # 制冷模式：降温 + 除湿
             temp_change = random.uniform(0.3, 0.8)
-            humidity_change = random.uniform(0.5, 2.0)  # 制冷时除湿效果
             
             if current_temp > target_temp:
                 new_temp = current_temp - temp_change
@@ -93,14 +92,24 @@ def generate_sensor_data(device_id):
             else:
                 new_temp = target_temp + random.uniform(-0.2, 0.2)
             
-            # 制冷除湿
+            # 制冷除湿：湿度根据当前值动态调整
+            # 湿度越高，除湿效果越明显；湿度低时，除湿减缓，甚至微微回升
+            if current_humidity > 55:
+                humidity_change = random.uniform(0.8, 2.0)  # 高湿度时除湿快
+            elif current_humidity > 45:
+                humidity_change = random.uniform(0.3, 1.0)  # 中等湿度
+            elif current_humidity > 38:
+                humidity_change = random.uniform(0.05, 0.3)  # 低湿度时除湿很慢
+            else:
+                # 湿度过低时，自然回升（空气中的水分渗透）
+                humidity_change = random.uniform(-0.3, 0.1)  # 可能微微回升
+            
             new_humidity = current_humidity - humidity_change
-            new_humidity = max(30, new_humidity)  # 最低30%
+            new_humidity = max(35, min(70, new_humidity))  # 35-70% 范围
             
         elif mode == 'heat':
             # 制热模式：升温 + 干燥
             temp_change = random.uniform(0.4, 0.9)  # 制热稍快
-            humidity_change = random.uniform(0.3, 1.0)  # 加热使空气干燥
             
             if current_temp < target_temp:
                 new_temp = current_temp + temp_change
@@ -111,27 +120,50 @@ def generate_sensor_data(device_id):
             else:
                 new_temp = target_temp + random.uniform(-0.2, 0.2)
             
-            # 制热干燥
+            # 制热干燥：湿度根据当前值动态调整
+            if current_humidity > 55:
+                humidity_change = random.uniform(0.5, 1.2)  # 高湿度时干燥明显
+            elif current_humidity > 45:
+                humidity_change = random.uniform(0.2, 0.8)  # 中等湿度
+            elif current_humidity > 35:
+                humidity_change = random.uniform(0.05, 0.4)  # 低湿度时干燥慢
+            else:
+                # 湿度过低时，自然回升
+                humidity_change = random.uniform(-0.2, 0.15)  # 可能微微回升
+            
             new_humidity = current_humidity - humidity_change
-            new_humidity = max(25, new_humidity)  # 制热可能更干燥
+            new_humidity = max(30, min(70, new_humidity))  # 30-70% 范围
             
         elif mode == 'fan':
             # 送风模式：几乎不调节温湿度，只有微小波动
+            # 但会让湿度逐渐向环境湿度回归
             new_temp = current_temp + random.uniform(-0.1, 0.1)
-            new_humidity = current_humidity + random.uniform(-0.2, 0.2)
+            
+            # 湿度向环境湿度（55%）缓慢回归
+            ambient_humidity = 55.0
+            humidity_drift = (ambient_humidity - current_humidity) * 0.05  # 5%速度回归
+            new_humidity = current_humidity + humidity_drift + random.uniform(-0.3, 0.3)
             
         elif mode == 'dehumidify':
             # 除湿模式：轻微降温 + 强力除湿
             temp_change = random.uniform(0.1, 0.3)  # 除湿时温度稍微下降
-            humidity_change = random.uniform(1.0, 3.0)  # 强力除湿
             
             # 轻微降温
             new_temp = current_temp - temp_change
             new_temp = max(new_temp, target_temp - 2)  # 除湿模式不会降温太多
             
-            # 强力除湿
+            # 强力除湿：湿度越高，除湿越快
+            if current_humidity > 60:
+                humidity_change = random.uniform(2.0, 4.0)  # 高湿度强力除湿
+            elif current_humidity > 50:
+                humidity_change = random.uniform(1.0, 2.5)  # 中高湿度
+            elif current_humidity > 40:
+                humidity_change = random.uniform(0.5, 1.5)  # 中等湿度
+            else:
+                humidity_change = random.uniform(0.1, 0.6)  # 低湿度时除湿变慢
+            
             new_humidity = current_humidity - humidity_change
-            new_humidity = max(30, new_humidity)  # 最低30%
+            new_humidity = max(30, min(70, new_humidity))  # 30-70% 范围
             
         else:
             # 未知模式，使用默认制冷逻辑
