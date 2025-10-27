@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 门锁用户初始化脚本
-创建默认用户：Dad, Mom
 """
 
 import os

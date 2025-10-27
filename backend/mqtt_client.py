@@ -5,7 +5,9 @@ MQTT 客户端模块
 
 import paho.mqtt.client as mqtt
 import json
-from database import insert_sensor_data, upsert_lock_state, insert_lock_event
+from database import insert_sensor_data, upsert_lock_state, insert_lock_event, upsert_lighting_state, insert_lighting_event
+from database import (insert_sensor_data, upsert_lock_state, insert_lock_event,
+                     upsert_smoke_alarm_state, insert_smoke_alarm_event)
 from config import MQTT_BROKER, MQTT_PORT, MQTT_TOPIC
 
 
@@ -32,18 +34,29 @@ def on_connect(client, userdata, flags, rc):
         client.subscribe("home/lock/+/state")
         client.subscribe("home/lock/+/event")
         print("✓ 已订阅主题: home/lock/+/state, home/lock/+/event")
+        # ------------------------------------------------------------------------------------------------------
+        # 灯具状态与事件
+        client.subscribe("home/lighting/+/state")
+        client.subscribe("home/lighting/+/event")
+        print("✓ 已订阅主题: home/lighting/+/state, home/lighting/+/event")
+        # ------------------------------------------------------------------------------------------------------
+        # 烟雾报警器状态与事件
+        client.subscribe("home/smoke_alarm/+/state")
+        client.subscribe("home/smoke_alarm/+/event")
+        print("✓ 已订阅主题: home/smoke_alarm/+/state, home/smoke_alarm/+/event")
     else:
         print(f"✗ 连接失败，返回码: {rc}")
 
 
 def on_message(client, userdata, msg):
     """
-    消息回调：处理温湿度与门锁数据
+    消息回调：处理温湿度、门锁与灯具数据
+    消息回调：处理温湿度、门锁和烟雾报警器数据
     """
     try:
         topic = msg.topic
         payload = msg.payload.decode()
-        
+
         # 门锁主题处理
         if topic.startswith("home/lock/"):
             parts = topic.split('/')
@@ -56,7 +69,7 @@ def on_message(client, userdata, msg):
                 # 期望: { locked: true/false, method, actor, battery, ts }
                 upsert_lock_state(
                     lock_id=lock_id,
-                    locked=bool(data.get('locked', True)),
+                    locked=bool(data.get('locked', False)),  # 默认解锁状态
                     method=data.get('method'),
                     actor=data.get('actor'),
                     battery=data.get('battery'),
@@ -74,6 +87,67 @@ def on_message(client, userdata, msg):
                 )
                 print(f"📨 [lock:{lock_id}] event {data.get('type')} by {data.get('actor')}")
             return
+        # ------------------------------------------------------------------------------------------------------    
+        # 灯具主题处理
+        if topic.startswith("home/lighting/"):
+            parts = topic.split('/')
+            light_id = parts[2] if len(parts) > 2 else 'light_room1'
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                data = {}
+            if topic.endswith('/state'):
+                # 期望: { power: true/false, brightness: 0-100, auto_mode: true/false, room_brightness: float, color_temp: int }
+                upsert_lighting_state(
+                    light_id=light_id,
+                    power=data.get('power'),
+                    brightness=data.get('brightness'),
+                    auto_mode=data.get('auto_mode'),
+                    room_brightness=data.get('room_brightness'),
+                    color_temp=data.get('color_temp')
+                )
+                print(f"📨 [light:{light_id}] state power={data.get('power')} brightness={data.get('brightness')}% auto={data.get('auto_mode')}")
+            elif topic.endswith('/event'):
+                insert_lighting_event(
+                    light_id=light_id,
+                    event_type=str(data.get('type', 'event')),
+                    old_value=data.get('old_value'),
+                    new_value=data.get('new_value'),
+                    detail=data.get('detail')
+                )
+                print(f"📨 [light:{light_id}] event {data.get('type')} - {data.get('detail')}")
+            return
+        # ------------------------------------------------------------------------------------------------------    
+
+        # 烟雾报警器主题处理
+        if topic.startswith("home/smoke_alarm/"):
+            parts = topic.split('/')
+            alarm_id = parts[2] if len(parts) > 2 else 'smoke_unknown'
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                data = {}
+            if topic.endswith('/state'):
+                # 期望: { smoke_level: float, alarm_active: bool, battery: int, test_mode: bool, location: str }
+                upsert_smoke_alarm_state(
+                    alarm_id=alarm_id,
+                    location=data.get('location'),
+                    smoke_level=data.get('smoke_level'),
+                    alarm_active=bool(data.get('alarm_active', False)),
+                    battery=data.get('battery'),
+                    test_mode=bool(data.get('test_mode', False)),
+                    sensitivity=data.get('sensitivity')
+                )
+                print(f"📨 [smoke:{alarm_id}] smoke_level={data.get('smoke_level')} alarm={data.get('alarm_active')} battery={data.get('battery')}%")
+            elif topic.endswith('/event'):
+                insert_smoke_alarm_event(
+                    alarm_id=alarm_id,
+                    event_type=str(data.get('type', 'event')),
+                    smoke_level=data.get('smoke_level'),
+                    detail=json.dumps(data.get('detail')) if isinstance(data.get('detail'), (dict, list)) else data.get('detail')
+                )
+                print(f"📨 [smoke:{alarm_id}] event {data.get('type')}")
+            return
 
         # 温湿度主题处理
         device_id = parse_device_id(topic)
@@ -83,7 +157,7 @@ def on_message(client, userdata, msg):
             data = eval(payload)
         insert_sensor_data(data, device_id)
         print(f"📨 [{device_id}] 温度: {data['temperature']}°C, 湿度: {data['humidity']}%")
-        
+
     except Exception as e:
         print(f"✗ 处理消息时出错: {e}")
         print(f"  主题: {msg.topic}")
@@ -124,11 +198,41 @@ def publish_lock_command(lock_id, action, method, actor=None, pin=None):
     client.publish(topic, json.dumps(payload))
     print(f"📤 [lock:{lock_id}] cmd -> {payload}")
 
+# ------------------------------------------------------------------------------------------------------
+def publish_lighting_command(light_id, power=None, brightness=None, auto_mode=None, color_temp=None):
+    """发布灯具控制命令到 MQTT。"""
+    topic = f"home/lighting/{light_id}/cmd"
+    payload = {}
+    if power is not None:
+        payload["power"] = power
+    if brightness is not None:
+        payload["brightness"] = brightness
+    if auto_mode is not None:
+        payload["auto_mode"] = auto_mode
+    if color_temp is not None:
+        payload["color_temp"] = color_temp
+    
+    client.publish(topic, json.dumps(payload))
+    print(f"📤 [light:{light_id}] cmd -> {payload}")
 
+
+def publish_lighting_auto_adjust(light_id, room_brightness):
+    """发布灯具智能调节命令到 MQTT。"""
+    topic = f"home/lighting/{light_id}/auto_adjust"
+    payload = {"room_brightness": room_brightness}
+    client.publish(topic, json.dumps(payload))
+    print(f"📤 [light:{light_id}] auto_adjust -> {payload}")
+# ------------------------------------------------------------------------------------------------------        
+
+  
 if __name__ == "__main__":
     print("="*50)
     print("MQTT 客户端运行中...")
     print(f"订阅主题: {MQTT_TOPIC}")
+    # ------------------------------------------------------------------------------------------------------
+    print("订阅主题: home/lock/+/state, home/lock/+/event")
+    print("订阅主题: home/lighting/+/state, home/lighting/+/event")
+    # ------------------------------------------------------------------------------------------------------
     print("="*50)
     
     try:

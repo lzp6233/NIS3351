@@ -20,7 +20,8 @@ backend_dir = os.path.join(current_dir, '..', 'backend')
 sys.path.insert(0, backend_dir)
 
 # 从统一的配置文件导入
-from config import MQTT_BROKER, MQTT_PORT
+from config import MQTT_BROKER, MQTT_PORT, GLOBAL_PINCODE
+from database import get_auto_lock_config
 
 LOCK_ID = 'FRONT_DOOR'
 
@@ -42,7 +43,19 @@ class LockState:
         if self.auto_lock_timer:
             self.auto_lock_timer.cancel()
         
-        delay = delay or self.auto_lock_delay
+        # 从数据库获取自动锁定配置
+        try:
+            config = get_auto_lock_config(LOCK_ID)
+            if not config['auto_lock_enabled']:
+                print("⏰ 自动锁定已禁用")
+                return
+            
+            delay = delay or config['auto_lock_delay']
+            self.auto_lock_delay = delay  # 更新延迟时间
+        except Exception as e:
+            print(f"⚠ 获取自动锁定配置失败，使用默认值: {e}")
+            delay = delay or self.auto_lock_delay
+        
         self.auto_lock_timer = threading.Timer(delay, self._auto_lock, args=[client])
         self.auto_lock_timer.start()
         print(f"⏰ 自动锁定定时器已启动，{delay}秒后自动上锁")
@@ -96,7 +109,14 @@ def publish_event(client, type_, detail=None):
     print(f"📤 [lock:{LOCK_ID}] event -> {payload}")
 
 
-EXPECTED_PIN = "1234"  # 演示用，真实应在后端校验
+def get_current_pincode():
+    """动态获取当前全局PINCODE"""
+    try:
+        # 使用新的PINCODE配置系统
+        from pincode_config import get_pincode
+        return get_pincode()
+    except:
+        return GLOBAL_PINCODE  # 回退到初始值
 
 
 def on_connect(client, userdata, flags, rc):
@@ -129,7 +149,8 @@ def on_message(client, userdata, msg):
 
     if action == "unlock":
         if method == "PINCODE":
-            if pin == EXPECTED_PIN:
+            current_pin = get_current_pincode()
+            if pin == current_pin:
                 state.locked = False
                 publish_state(client)
                 publish_event(client, "unlock_success")
@@ -163,8 +184,8 @@ def main():
     print("✓ 锁模拟器已启动")
     try:
         while True:
-            # 周期性健康上报（例如每 30 秒）
-            time.sleep(30)
+            # 周期性健康上报（每 1 秒）
+            time.sleep(1)
             publish_state(client)
     except KeyboardInterrupt:
         print("\n停止锁模拟器...")

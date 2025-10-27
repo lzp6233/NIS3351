@@ -9,10 +9,65 @@ from database import (
     get_all_locks, get_lock_state, get_lock_events, 
     insert_lock_event, verify_user_credentials, get_user_face_image,
     get_user_fingerprint_data, get_auto_lock_config, update_auto_lock_config,
-    create_lock_user, get_all_lock_users
+    create_lock_user, get_all_lock_users, get_connection
 )
-from config import GLOBAL_PINCODE
+from config import GLOBAL_PINCODE, DB_TYPE
 from mqtt_client import publish_lock_command
+
+
+def verify_pincode(pin):
+    """验证PINCODE是否与全局PINCODE一致"""
+    from pincode_config import get_pincode
+    current_pincode = get_pincode()
+    return str(pin) == str(current_pincode)
+
+
+def verify_fingerprint_credentials(username, password):
+    """验证指纹识别凭据（使用用户名+密码模拟）"""
+    import hashlib
+    
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id FROM lock_users WHERE username = ? AND password_hash = ?",
+                (username, password_hash)
+            )
+            return cur.fetchone() is not None
+        else:
+            stmt = conn.prepare(
+                "SELECT id FROM lock_users WHERE username = $1 AND password_hash = $2"
+            )
+            rows = stmt(username, password_hash)
+            for _ in rows:
+                return True
+            return False
+    finally:
+        conn.close()
+
+
+def update_global_pincode(new_pin):
+    """更新全局PINCODE配置"""
+    from pincode_config import set_pincode
+    import config
+    
+    # 使用新的PINCODE配置系统
+    success = set_pincode(new_pin)
+    
+    if success:
+        # 更新config模块中的GLOBAL_PINCODE
+        config.GLOBAL_PINCODE = new_pin
+        
+        # 记录事件
+        insert_lock_event('SYSTEM', event_type='pincode_changed', method='ADMIN', 
+                         actor='SYSTEM', detail=f'全局PINCODE已更新为: {new_pin}')
+        return True
+    else:
+        raise Exception("PINCODE更新失败")
+
+
 
 # 创建蓝图
 lock_bp = Blueprint('lock', __name__, url_prefix='/locks')
@@ -64,9 +119,9 @@ def lock_command(lock_id):
     auth_detail = ""
     
     if method == "PINCODE":
-        if not all([username, password, pin]):
-            return jsonify({"error": "PINCODE方式需要用户名、密码和PIN码"}), 400
-        auth_success = verify_user_credentials(username, password, pin)
+        if not pin:
+            return jsonify({"error": "PINCODE方式需要PIN码"}), 400
+        auth_success = verify_pincode(pin)
         auth_detail = "PINCODE认证" + ("成功" if auth_success else "失败")
         
     elif method == "FACE":
@@ -77,10 +132,10 @@ def lock_command(lock_id):
         auth_detail = "面部识别" + ("成功" if auth_success else "失败")
         
     elif method == "FINGERPRINT":
-        if not all([username, fingerprint_data]):
-            return jsonify({"error": "指纹识别需要用户名和指纹数据"}), 400
-        # 模拟指纹识别验证
-        auth_success = verify_fingerprint(username, fingerprint_data)
+        if not all([username, password]):
+            return jsonify({"error": "指纹识别需要用户名和密码"}), 400
+        # 模拟指纹识别验证（使用用户名+密码）
+        auth_success = verify_fingerprint_credentials(username, password)
         auth_detail = "指纹识别" + ("成功" if auth_success else "失败")
         
     # 不再支持其他方式，前面已经校验过 method
@@ -179,6 +234,27 @@ def list_users():
     return jsonify({"users": get_all_lock_users()})
 
 
+@lock_bp.route('/users/<username>', methods=['DELETE'])
+def delete_user(username):
+    """注销指定用户"""
+    try:
+        # 检查用户是否存在
+        users = get_all_lock_users()
+        if username not in users:
+            return jsonify({'error': '用户不存在'}), 404
+        
+        # 删除用户
+        delete_lock_user(username)
+        
+        # 记录事件
+        insert_lock_event('SYSTEM', event_type='user_deleted', method='ADMIN', 
+                         actor='SYSTEM', detail=f'用户 {username} 已被注销')
+        
+        return jsonify({'status': 'deleted', 'username': username})
+    except Exception as e:
+        return jsonify({'error': f'注销用户失败: {str(e)}'}), 500
+
+
 @lock_bp.route('/users', methods=['POST'])
 def create_user():
     """注册新用户：username, password, (face_image base64), (fingerprint_data)
@@ -219,4 +295,32 @@ def create_user():
         return jsonify({'status': 'created', 'username': username})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@lock_bp.route('/pincode', methods=['POST'])
+def change_pincode():
+    """修改全局PINCODE：需要验证当前PINCODE，然后设置新的PINCODE"""
+    body = request.get_json(force=True) or {}
+    current_pin = body.get('current_pin')
+    new_pin = body.get('new_pin')
+
+    if not current_pin or not new_pin:
+        return jsonify({'error': 'current_pin and new_pin are required'}), 400
+
+    # 验证当前PINCODE
+    if not verify_pincode(current_pin):
+        return jsonify({'error': '当前PINCODE不正确'}), 401
+
+    # 验证新PINCODE格式
+    if len(new_pin) < 4:
+        return jsonify({'error': '新PINCODE长度至少4位'}), 400
+
+    try:
+        # 更新全局PINCODE配置
+        update_global_pincode(new_pin)
+        return jsonify({'status': 'updated', 'message': 'PINCODE修改成功'})
+    except Exception as e:
+        return jsonify({'error': f'修改PINCODE失败: {str(e)}'}), 500
+
+
 

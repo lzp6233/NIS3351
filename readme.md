@@ -1,11 +1,12 @@
 # NIS3351 智慧家居系统
 
-一个基于 Flask + MQTT + openGauss 的智慧家居监控系统，支持温湿度监控、空调控制和智能门锁管理。
+一个基于 Flask + MQTT + openGauss 的智慧家居监控系统，支持温湿度监控、空调控制、全屋灯具控制和智能门锁管理。
 
 ## 📋 功能模块
 
 - **温湿度监控**：实时监控各房间的温度和湿度数据
 - **空调控制**：远程控制空调开关和目标温度，模拟器会根据设置智能调节温度
+- **全屋灯具控制**：关闭“智能调节”模式时，远程控制各房间的灯具开关；开启“智能调节”模式时，各房间灯具亮度将根据所处房间亮度调整
 - **智能门锁**：门锁状态监控和远程控制
 
 ---
@@ -461,6 +462,41 @@ curl -X POST http://localhost:5000/lock/FRONT_DOOR/control \
   }'
 ```
 
+### 烟雾报警器模块
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/smoke_alarms` | 获取所有烟雾报警器列表 |
+| GET | `/smoke_alarms/<alarm_id>` | 获取烟雾报警器状态 |
+| POST | `/smoke_alarms/<alarm_id>/test` | 启动/停止测试模式 |
+| POST | `/smoke_alarms/<alarm_id>/sensitivity` | 更新灵敏度设置 |
+| GET | `/smoke_alarms/<alarm_id>/events` | 获取事件历史 |
+| POST | `/smoke_alarms/<alarm_id>/acknowledge` | 确认/清除报警 |
+
+**启动测试模式示例**：
+```bash
+curl -X POST http://localhost:5000/smoke_alarms/smoke_living_room/test \
+  -H "Content-Type: application/json" \
+  -d '{
+    "test_mode": true
+  }'
+```
+
+**更新灵敏度示例**：
+```bash
+curl -X POST http://localhost:5000/smoke_alarms/smoke_kitchen/sensitivity \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sensitivity": "high"
+  }'
+```
+
+**确认报警示例**：
+```bash
+curl -X POST http://localhost:5000/smoke_alarms/smoke_bedroom/acknowledge \
+  -H "Content-Type: application/json"
+```
+
 ---
 
 ## 🗄️ 数据库表结构
@@ -475,6 +511,30 @@ curl -X POST http://localhost:5000/lock/FRONT_DOOR/control \
 | humidity | FLOAT | 湿度值（%） |
 | timestamp | TIMESTAMP | 记录时间 |
 
+### smoke_alarm_state
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| alarm_id | VARCHAR(50) | 报警器ID（主键） |
+| location | VARCHAR(50) | 位置（living_room/bedroom/kitchen） |
+| smoke_level | FLOAT | 烟雾浓度（0-100） |
+| alarm_active | BOOLEAN | 报警状态 |
+| battery | INTEGER | 电池电量（0-100） |
+| test_mode | BOOLEAN | 测试模式 |
+| sensitivity | VARCHAR(20) | 灵敏度（low/medium/high） |
+| updated_at | TIMESTAMP | 最后更新时间 |
+
+### smoke_alarm_events
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | SERIAL | 主键，自增 |
+| alarm_id | VARCHAR(50) | 报警器ID |
+| event_type | VARCHAR(32) | 事件类型 |
+| smoke_level | FLOAT | 触发时烟雾浓度 |
+| detail | TEXT | 事件详情 |
+| timestamp | TIMESTAMP | 事件时间 |
+
 ---
 
 ## 🎯 开发者指南
@@ -485,6 +545,7 @@ curl -X POST http://localhost:5000/lock/FRONT_DOOR/control \
 
 - **空调模块**：`backend/routes/air_conditioner.py`
 - **门锁模块**：`backend/routes/lock.py`
+- **烟雾报警器模块**：`backend/routes/smoke_alarm.py`
 
 这种设计便于：
 - ✅ 多人协作开发，互不干扰
