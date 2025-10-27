@@ -1,15 +1,15 @@
 """
 Flask Web 服务器
-提供 API 接口和 WebSocket 实时推送
+提供 API 接口
 
 模块化架构：
 - routes/air_conditioner.py - 空调模块（温湿度监控与控制）
 - routes/lock.py - 智能门锁模块
-- 可扩展添加更多设备模块（窗帘、灯光等）
+- routes/lighting.py - 智能灯具模块
+- routes/smoke_alarm.py - 烟雾报警器模块
 """
 
 from flask import Flask, jsonify, request
-from flask_socketio import SocketIO
 from flask_cors import CORS
 from config import FLASK_HOST, FLASK_PORT
 
@@ -23,14 +23,12 @@ app = Flask(__name__)
 
 # 配置 CORS 以允许来自前端的请求
 # 开发环境设置 max_age=0 避免浏览器缓存 CORS 预检请求
-CORS(app, 
+CORS(app,
     resources={r"/*": {"origins": "*"}},
     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     supports_credentials=False,
     max_age=0)
-
-socketio = SocketIO(app, cors_allowed_origins="*")
 
 # 添加响应头处理器以确保 CORS 头始终存在
 @app.after_request
@@ -95,7 +93,6 @@ def index():
                     "/locks/<lock_id>/command": "发送门锁控制命令"
                 }
             },
-            # ------------------------------------------------------------------------------------------------------
             "lighting": {
                 "description": "全屋灯具控制模块",
                 "endpoints": {
@@ -105,6 +102,8 @@ def index():
                     "/lighting/<light_id>/events": "获取灯具事件历史",
                     "/lighting/<light_id>/auto-adjust": "智能调节灯具亮度",
                     "/lighting/batch-control": "批量控制多个灯具"
+                }
+            },
             "smoke_alarm": {
                 "description": "烟雾报警器模块",
                 "endpoints": {
@@ -116,7 +115,6 @@ def index():
                     "/smoke_alarms/<alarm_id>/acknowledge": "确认/清除报警"
                 }
             }
-            # ------------------------------------------------------------------------------------------------------
         }
     })
 
@@ -129,6 +127,7 @@ if __name__ == "__main__":
     print("  ❄️  空调模块 (routes/air_conditioner.py) - 负责人: lzp")
     print("  🔒 智能门锁模块 (routes/lock.py)")
     print("  💡 全屋灯具控制模块 (routes/lighting.py) - 负责人: lzx")
+    print("  🚨 烟雾报警器模块 (routes/smoke_alarm.py)")
     print("="*60)
     print("API 端点:")
     print("  空调:")
@@ -148,6 +147,11 @@ if __name__ == "__main__":
     print("    POST /lighting/<light_id>/control - 控制灯具")
     print("    POST /lighting/<light_id>/auto-adjust - 智能调节")
     print("    POST /lighting/batch-control   - 批量控制")
-    # ------------------------------------------------------------------------------------------------------
+    print("  烟雾报警器:")
+    print("    GET  /smoke_alarms                      - 获取所有烟雾报警器")
+    print("    GET  /smoke_alarms/<alarm_id>           - 获取报警器状态")
+    print("    POST /smoke_alarms/<alarm_id>/test      - 启动/停止测试模式")
+    print("    PUT  /smoke_alarms/<alarm_id>/sensitivity - 更新灵敏度")
+    print("    POST /smoke_alarms/<alarm_id>/acknowledge - 确认/清除报警")
     print("="*60)
-    socketio.run(app, host=FLASK_HOST, port=FLASK_PORT, debug=False, allow_unsafe_werkzeug=True)
+    app.run(host=FLASK_HOST, port=FLASK_PORT, debug=False)
