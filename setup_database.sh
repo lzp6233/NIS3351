@@ -106,10 +106,22 @@ fi
 
 echo ""
 echo -e "${YELLOW}步骤 2/4: 创建数据库和表...${NC}"
-if gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -W "${DB_ADMIN_PASSWORD}" -f init_db.sql 2>&1 | grep -v "already exists"; then
-    echo -e "${GREEN}✓ 数据库和表创建成功${NC}"
+
+# 首先检查数据库是否存在，如果不存在则创建
+if gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -W "${DB_ADMIN_PASSWORD}" -c "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}';" | grep -q 1; then
+    echo -e "${GREEN}✓ 数据库 ${DB_NAME} 已存在${NC}"
 else
-    echo -e "${YELLOW}⚠ 数据库可能已存在${NC}"
+    echo -e "${YELLOW}创建数据库 ${DB_NAME}...${NC}"
+    gsql -d postgres -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -W "${DB_ADMIN_PASSWORD}" -c "CREATE DATABASE ${DB_NAME};" > /dev/null 2>&1
+    echo -e "${GREEN}✓ 数据库创建成功${NC}"
+fi
+
+# 然后在 smart_home 数据库中创建表
+echo -e "${YELLOW}创建数据表...${NC}"
+if gsql -d "${DB_NAME}" -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_ADMIN_USER}" -W "${DB_ADMIN_PASSWORD}" -f init_db.sql > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ 数据表创建成功${NC}"
+else
+    echo -e "${YELLOW}⚠ 部分表可能已存在${NC}"
 fi
 
 echo ""
@@ -187,10 +199,16 @@ echo "  - lock_users (门锁用户)"
 echo "  - lock_auto_config (自动锁定配置)"
 echo "  - ac_state (空调状态)"
 echo "  - ac_events (空调事件)"
+echo "  - lighting_state (灯具状态)"
+echo "  - lighting_events (灯具事件)"
+echo "  - smoke_alarm_state (烟雾报警器状态)"
+echo "  - smoke_alarm_events (烟雾报警器事件)"
 echo ""
 echo "已初始化的数据："
 echo "  - 空调: ac_room1, ac_room2"
 echo "  - 门锁: FRONT_DOOR"
+echo "  - 灯具: light_room1, light_room2, light_living, light_kitchen"
+echo "  - 烟雾报警器: smoke_living_room, smoke_bedroom, smoke_kitchen"
 echo ""
 echo "下一步："
 echo "  1. 启动系统: sh run.sh"

@@ -1,16 +1,12 @@
 -- ============================================
 -- NIS3351 智能家居监控系统数据库初始化脚本
--- 使用方法：gsql -d postgres -h 127.0.0.1 -p 7654 -f init_db.sql
+-- 使用方法：gsql -d smart_home -h 127.0.0.1 -p 7654 -U lzp -W password -f init_db.sql
 -- ============================================
 
--- 1. 创建数据库（如果不存在）
-SELECT 'Creating database...' AS status;
-CREATE DATABASE smart_home;
+-- 注意：数据库 smart_home 应该已经存在
+-- 如果需要创建数据库，请使用管理员账户执行：CREATE DATABASE smart_home;
 
--- 2. 连接到新数据库
-\c smart_home
-
--- 3. 创建温湿度传感器数据表
+-- 1. 创建温湿度传感器数据表
 SELECT 'Creating table: temperature_humidity_data...' AS status;
 
 CREATE TABLE IF NOT EXISTS temperature_humidity_data (
@@ -100,6 +96,26 @@ END $$;
 INSERT INTO lock_events (lock_id, event_type, method, actor, detail)
 VALUES ('FRONT_DOOR', 'INIT', NULL, NULL, 'Initialized with LOCKED=TRUE');
 
+-- 门锁用户认证表
+CREATE TABLE IF NOT EXISTS lock_users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    pincode VARCHAR(10) NOT NULL,
+    face_image_path VARCHAR(255),
+    fingerprint_data TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 自动锁定配置表
+CREATE TABLE IF NOT EXISTS lock_auto_config (
+    lock_id VARCHAR(50) PRIMARY KEY,
+    auto_lock_enabled BOOLEAN DEFAULT true,
+    auto_lock_delay INTEGER DEFAULT 5,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 10. 空调控制：智能空调表结构
 SELECT 'Creating tables for air conditioner...' AS status;
 
@@ -172,6 +188,10 @@ CREATE TABLE IF NOT EXISTS lighting_events (
     event_type VARCHAR(32) NOT NULL,          -- power_on/power_off/brightness_change/auto_mode_change
     old_value TEXT,
     new_value TEXT,
+    detail TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 11. 烟雾报警器：智能烟雾报警器表结构
 SELECT 'Creating tables for smoke alarm...' AS status;
 
