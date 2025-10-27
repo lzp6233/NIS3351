@@ -118,6 +118,10 @@ def get_connection():
                 event_type VARCHAR(32) NOT NULL,
                 old_value TEXT,
                 new_value TEXT,
+                detail TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         # 烟雾报警器状态表
         cur.execute("""
             CREATE TABLE IF NOT EXISTS smoke_alarm_state (
@@ -1055,68 +1059,8 @@ def upsert_lighting_state(light_id, device_id=None, power=None, brightness=None,
             conn.commit()
         else:
             # openGauss 处理
-            stmt = conn.prepare("""
-                INSERT INTO lighting_state (light_id, device_id, power, brightness, auto_mode, room_brightness, color_temp, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-                ON CONFLICT (light_id) DO UPDATE SET
-                    device_id = COALESCE(EXCLUDED.device_id, lighting_state.device_id),
-                    power = COALESCE(EXCLUDED.power, lighting_state.power),
-                    brightness = COALESCE(EXCLUDED.brightness, lighting_state.brightness),
-                    auto_mode = COALESCE(EXCLUDED.auto_mode, lighting_state.auto_mode),
-                    room_brightness = COALESCE(EXCLUDED.room_brightness, lighting_state.room_brightness),
-                    color_temp = COALESCE(EXCLUDED.color_temp, lighting_state.color_temp),
-                    updated_at = NOW()
-            """)
-            stmt(light_id, device_id, power, brightness, auto_mode, room_brightness, color_temp)
-            cur.execute("SELECT alarm_id FROM smoke_alarm_state WHERE alarm_id = ?", (alarm_id,))
-            exists = cur.fetchone()
-
-            if exists:
-                # 更新
-                updates = []
-                values = []
-                if location is not None:
-                    updates.append("location = ?")
-                    values.append(location)
-                if smoke_level is not None:
-                    updates.append("smoke_level = ?")
-                    values.append(smoke_level)
-                if alarm_active is not None:
-                    updates.append("alarm_active = ?")
-                    values.append(1 if alarm_active else 0)
-                if battery is not None:
-                    updates.append("battery = ?")
-                    values.append(battery)
-                if test_mode is not None:
-                    updates.append("test_mode = ?")
-                    values.append(1 if test_mode else 0)
-                if sensitivity is not None:
-                    updates.append("sensitivity = ?")
-                    values.append(sensitivity)
-
-                if updates:
-                    updates.append("updated_at = CURRENT_TIMESTAMP")
-                    values.append(alarm_id)
-                    sql = f"UPDATE smoke_alarm_state SET {', '.join(updates)} WHERE alarm_id = ?"
-                    cur.execute(sql, values)
-            else:
-                # 插入
-                cur.execute(
-                    """INSERT INTO smoke_alarm_state
-                       (alarm_id, location, smoke_level, alarm_active, battery, test_mode, sensitivity)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (alarm_id, location or 'unknown',
-                     smoke_level or 0.0,
-                     1 if alarm_active else 0,
-                     battery or 100,
-                     1 if test_mode else 0,
-                     sensitivity or 'medium')
-                )
-            conn.commit()
-        else:
-            # openGauss 处理
-            stmt_check = conn.prepare("SELECT alarm_id FROM smoke_alarm_state WHERE alarm_id = $1")
-            rows = stmt_check(alarm_id)
+            stmt_check = conn.prepare("SELECT light_id FROM lighting_state WHERE light_id = $1")
+            rows = stmt_check(light_id)
             exists = False
             for _ in rows:
                 exists = True
@@ -1125,48 +1069,48 @@ def upsert_lighting_state(light_id, device_id=None, power=None, brightness=None,
             if exists:
                 # 更新
                 updates = []
-                values = [alarm_id]  # WHERE alarm_id = $1
+                values = [light_id]  # WHERE light_id = $1
                 param_count = 2
 
-                if location is not None:
-                    updates.append(f"location = ${param_count}")
-                    values.append(location)
+                if device_id is not None:
+                    updates.append(f"device_id = ${param_count}")
+                    values.append(device_id)
                     param_count += 1
-                if smoke_level is not None:
-                    updates.append(f"smoke_level = ${param_count}")
-                    values.append(smoke_level)
+                if power is not None:
+                    updates.append(f"power = ${param_count}")
+                    values.append(power)
                     param_count += 1
-                if alarm_active is not None:
-                    updates.append(f"alarm_active = ${param_count}")
-                    values.append(alarm_active)
+                if brightness is not None:
+                    updates.append(f"brightness = ${param_count}")
+                    values.append(brightness)
                     param_count += 1
-                if battery is not None:
-                    updates.append(f"battery = ${param_count}")
-                    values.append(battery)
+                if auto_mode is not None:
+                    updates.append(f"auto_mode = ${param_count}")
+                    values.append(auto_mode)
                     param_count += 1
-                if test_mode is not None:
-                    updates.append(f"test_mode = ${param_count}")
-                    values.append(test_mode)
+                if room_brightness is not None:
+                    updates.append(f"room_brightness = ${param_count}")
+                    values.append(room_brightness)
                     param_count += 1
-                if sensitivity is not None:
-                    updates.append(f"sensitivity = ${param_count}")
-                    values.append(sensitivity)
+                if color_temp is not None:
+                    updates.append(f"color_temp = ${param_count}")
+                    values.append(color_temp)
                     param_count += 1
 
                 if updates:
                     updates.append("updated_at = NOW()")
-                    sql = f"UPDATE smoke_alarm_state SET {', '.join(updates)} WHERE alarm_id = $1"
+                    sql = f"UPDATE lighting_state SET {', '.join(updates)} WHERE light_id = $1"
                     stmt = conn.prepare(sql)
                     stmt(*values)
             else:
                 # 插入
                 stmt = conn.prepare("""
-                    INSERT INTO smoke_alarm_state
-                    (alarm_id, location, smoke_level, alarm_active, battery, test_mode, sensitivity, updated_at)
+                    INSERT INTO lighting_state
+                    (light_id, device_id, power, brightness, auto_mode, room_brightness, color_temp, updated_at)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
                 """)
-                stmt(alarm_id, location or 'unknown', smoke_level or 0.0,
-                     alarm_active or False, battery or 100, test_mode or False, sensitivity or 'medium')
+                stmt(light_id, device_id or 'room1', power or False, brightness or 50,
+                     auto_mode or False, room_brightness, color_temp or 4000)
     finally:
         conn.close()
 
