@@ -8,6 +8,25 @@ let realtimeMode = false;
 let statusUpdateInterval = 1000; // 状态更新间隔1秒
 let statusIntervalId = null;
 
+// 全局错误处理 - 只alert一次
+let hasShownConnectionError = false;
+
+// 全局错误处理函数
+function handleConnectionError(error, context = '') {
+    console.error(`连接错误 ${context}:`, error);
+    
+    // 只在第一次出现连接错误时显示alert
+    if (!hasShownConnectionError) {
+        hasShownConnectionError = true;
+        alert('无法连接到后端服务，请检查服务器是否正常运行');
+        
+        // 5分钟后重置错误标志，允许再次提示
+        setTimeout(() => {
+            hasShownConnectionError = false;
+        }, 5 * 60 * 1000);
+    }
+}
+
 // 更新锁状态显示
 function updateLockStatusDisplay(lockData) {
     document.getElementById('lockId').textContent = lockData.lock_id;
@@ -73,17 +92,28 @@ async function loadUserList() {
             userList.appendChild(option);
         });
     } catch (error) {
-        console.error('加载用户列表失败:', error);
+        handleConnectionError(error, '加载用户列表');
     }
 }
 
 // 注销用户
 async function logoutUser() {
+    console.log('注销函数被调用');
+    
     const userList = document.getElementById('userList');
     const selectedUser = userList.value;
+    const password = document.getElementById('deletePassword').value.trim();
+    
+    console.log('选择的用户:', selectedUser);
+    console.log('输入的密码:', password ? '已填写' : '未填写');
     
     if (!selectedUser) {
         alert('请选择要注销的用户');
+        return;
+    }
+    
+    if (!password) {
+        alert('请输入要注销用户的密码进行验证');
         return;
     }
     
@@ -92,16 +122,27 @@ async function logoutUser() {
     }
     
     try {
+        console.log('正在发送注销请求...', { password: password });
         const res = await fetch(`${API_BASE}/locks/users/${selectedUser}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: password })
         });
+        
+        console.log('注销响应状态:', res.status);
         
         if (!res.ok) {
             const errorData = await res.json();
+            console.error('注销失败:', errorData);
             throw new Error(errorData.error || '注销用户失败');
         }
         
+        const result = await res.json();
+        console.log('注销成功:', result);
         alert(`用户 "${selectedUser}" 已成功注销`);
+        
+        // 清空密码输入框
+        document.getElementById('deletePassword').value = '';
         
         // 重新加载用户列表
         loadUserList();
@@ -139,6 +180,7 @@ function toggleAuthFields() {
             // PINCODE模式只显示修改PINCODE按钮
             document.getElementById('toggleChangePinBtn').style.display = 'inline-block';
             document.getElementById('toggleRegisterBtn').style.display = 'none';
+            document.getElementById('toggleUserManageBtn').style.display = 'none';
             break;
         case 'FACE':
             document.getElementById('faceFields').style.display = 'block';
@@ -226,7 +268,7 @@ async function loadAutoLockConfig() {
         const config = await res.json();
         document.getElementById('autoLockDelay').value = config.auto_lock_delay || 5;
     } catch (error) {
-        console.error('加载配置失败:', error);
+        handleConnectionError(error, '加载自动锁定配置');
         // 使用默认值
         document.getElementById('autoLockDelay').value = 5;
     }
@@ -247,8 +289,7 @@ async function loadLockState() {
         const lockData = await res.json();
         updateLockStatusDisplay(lockData);
     } catch (error) {
-        console.error('加载锁状态失败:', error);
-        alert('加载锁状态失败，请检查网络连接或服务器状态');
+        handleConnectionError(error, '加载锁状态');
     }
 }
 
@@ -388,10 +429,15 @@ function previewRegFace() {
 
 // 注册新用户
 async function registerUser() {
+    console.log('注册函数被调用');
+    
     const username = document.getElementById('regUsername').value.trim();
     const password = document.getElementById('regPassword').value.trim();
     const faceFile = document.getElementById('regFaceInput').files[0];
-    const fingerprintData = document.getElementById('regFingerprint').value.trim();
+    
+    console.log('用户名:', username);
+    console.log('密码:', password ? '已填写' : '未填写');
+    console.log('面部图像:', faceFile ? '已选择' : '未选择');
     
     if (!username || !password) {
         alert('用户名和密码是必填项');
@@ -406,39 +452,41 @@ async function registerUser() {
     // 处理面部图像
     if (faceFile) {
         try {
+            console.log('正在处理面部图像...');
             const faceImageData = await fileToBase64(faceFile);
             body.face_image = faceImageData;
+            console.log('面部图像处理完成');
         } catch (error) {
+            console.error('面部图像处理失败:', error);
             alert('面部图像处理失败');
             return;
         }
     }
     
-    // 处理指纹数据
-    if (fingerprintData) {
-        body.fingerprint_data = fingerprintData;
-    }
-    
     try {
+        console.log('正在发送注册请求...', body);
         const res = await fetch(`${API_BASE}/locks/users`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
         
+        console.log('注册响应状态:', res.status);
+        
         if (!res.ok) {
             const errorData = await res.json();
+            console.error('注册失败:', errorData);
             throw new Error(errorData.error || '注册失败');
         }
         
         const result = await res.json();
+        console.log('注册成功:', result);
         alert(`用户 ${result.username} 注册成功！`);
         
         // 清空表单
         document.getElementById('regUsername').value = '';
         document.getElementById('regPassword').value = '';
         document.getElementById('regFaceInput').value = '';
-        document.getElementById('regFingerprint').value = '';
         document.getElementById('regFacePreview').innerHTML = '';
         
         // 隐藏注册区域
@@ -527,7 +575,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // 注册按钮绑定
     const registerBtn = document.getElementById('btnRegister');
     if (registerBtn) {
+        console.log('找到注册按钮，绑定事件');
         registerBtn.addEventListener('click', registerUser);
+    } else {
+        console.error('未找到注册按钮！');
     }
     
     // 切换注册区域显示
@@ -569,7 +620,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // 用户管理按钮绑定
     const logoutUserBtn = document.getElementById('btnLogoutUser');
     if (logoutUserBtn) {
+        console.log('找到注销按钮，绑定事件');
         logoutUserBtn.addEventListener('click', logoutUser);
+    } else {
+        console.error('未找到注销按钮！');
     }
     
     // 切换用户管理区域显示

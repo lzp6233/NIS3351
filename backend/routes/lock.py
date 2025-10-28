@@ -9,7 +9,7 @@ from database import (
     get_all_locks, get_lock_state, get_lock_events, 
     insert_lock_event, verify_user_credentials, get_user_face_image,
     get_user_fingerprint_data, get_auto_lock_config, update_auto_lock_config,
-    create_lock_user, get_all_lock_users, get_connection
+    create_lock_user, get_all_lock_users, delete_lock_user, get_connection
 )
 from config import GLOBAL_PINCODE, DB_TYPE
 from mqtt_client import publish_lock_command
@@ -165,29 +165,21 @@ def lock_command(lock_id):
 
 
 def verify_face_recognition(username, face_image_data):
-    """模拟面部识别验证"""
-    # 在实际应用中，这里应该使用真正的面部识别算法
-    # 这里我们模拟一个简单的验证逻辑
-    
+    """真正的人脸识别验证"""
     # 获取用户注册的面部图像路径
     registered_face_path = get_user_face_image(username)
     if not registered_face_path:
+        print(f"用户 {username} 未找到注册的面部图像")
         return False
     
-    # 模拟面部识别过程
-    # 在实际应用中，这里会比较两张图像的面部特征
-    # 这里我们使用一个简单的模拟：如果图像数据长度大于1000就认为匹配
+    # 使用真正的人脸识别算法进行验证
     try:
-        # 假设 face_image_data 是 base64 编码的图像数据
-        if isinstance(face_image_data, str):
-            import base64
-            decoded_data = base64.b64decode(face_image_data)
-            # 模拟：如果解码后的数据长度大于1000字节，认为匹配
-            return len(decoded_data) > 1000
-        else:
-            # 如果是二进制数据
-            return len(face_image_data) > 1000
-    except:
+        from face_recognition_utils import verify_face_recognition as verify_face
+        result = verify_face(username, face_image_data, registered_face_path)
+        print(f"用户 {username} 人脸识别结果: {result}")
+        return result
+    except Exception as e:
+        print(f"人脸识别验证失败: {e}")
         return False
 
 
@@ -236,12 +228,25 @@ def list_users():
 
 @lock_bp.route('/users/<username>', methods=['DELETE'])
 def delete_user(username):
-    """注销指定用户"""
+    """注销指定用户（需要密码验证）"""
     try:
+        # 获取请求体中的密码
+        body = {}
+        if request.is_json:
+            body = request.get_json() or {}
+        password = body.get('password')
+        
+        if not password:
+            return jsonify({'error': '注销用户需要提供密码验证'}), 400
+        
         # 检查用户是否存在
         users = get_all_lock_users()
         if username not in users:
             return jsonify({'error': '用户不存在'}), 404
+        
+        # 验证用户密码
+        if not verify_user_credentials(username, password, GLOBAL_PINCODE):
+            return jsonify({'error': '密码验证失败'}), 401
         
         # 删除用户
         delete_lock_user(username)

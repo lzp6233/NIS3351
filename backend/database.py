@@ -511,7 +511,7 @@ def create_lock_user(username, password, pincode, face_image_path=None, fingerpr
         if DB_TYPE == 'sqlite':
             cur = conn.cursor()
             cur.execute(
-                """INSERT INTO lock_users (username, password_hash, pincode, face_image_path, fingerprint_data)
+                """INSERT INTO lock_users (username, password_hash, encrypted_pincode, face_image_path, fingerprint_data)
                    VALUES (?, ?, ?, ?, ?)""",
                 (username, password_hash, pincode, face_image_path, fingerprint_data)
             )

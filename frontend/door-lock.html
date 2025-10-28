@@ -309,7 +309,7 @@
   <div class="overlay"></div>
 
   <div class="lock-wrapper">
-    <a href="index.html" class="back-btn">⬅️ 返回</a>
+    <a href="index.html" class="back-btn">← 返回</a>
     <h1>🚪 智能门锁控制</h1>
     <p class="subtitle">远程控制、状态监测与家庭安全守护</p>
 
@@ -386,9 +386,6 @@
         <input type="file" id="regFaceInput" accept="image/*" onchange="previewRegFace()">
         <div id="regFacePreview" class="image-preview"></div>
 
-        <label for="regFingerprint">指纹数据（可选）</label>
-        <input type="text" id="regFingerprint">
-
         <div style="margin-top:8px;">
           <button id="btnRegister" class="btn btn-unlock" type="button">注册</button>
         </div>
@@ -403,6 +400,9 @@
         <select id="userList" style="margin-bottom: 10px;">
           <option value="">选择要注销的用户</option>
         </select>
+        
+        <label for="deletePassword">用户密码</label>
+        <input type="password" id="deletePassword">
         
         <div style="margin-top:8px;">
           <button id="btnLogoutUser" class="btn" type="button" style="background-color: #dc3545;">注销用户</button>

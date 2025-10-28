@@ -58,11 +58,12 @@ def handle_options():
 # 空调模块 - 负责人：lzp
 app.register_blueprint(air_conditioner_bp)
 
-# 智能门锁模块 - 负责人：[门锁模块负责人]
+# 智能门锁模块 - 负责人：lsq
 app.register_blueprint(lock_bp)
 
 # 全屋灯具控制模块 - 负责人：lzx
 app.register_blueprint(lighting_bp)
+
 # 烟雾报警器模块
 app.register_blueprint(smoke_alarm_bp)
 
@@ -125,7 +126,7 @@ if __name__ == "__main__":
     print("="*60)
     print("已加载模块:")
     print("  ❄️  空调模块 (routes/air_conditioner.py) - 负责人: lzp")
-    print("  🔒 智能门锁模块 (routes/lock.py)")
+    print("  🔒 智能门锁模块 (routes/lock.py) - 负责人: lsq")
     print("  💡 全屋灯具控制模块 (routes/lighting.py) - 负责人: lzx")
     print("  🚨 烟雾报警器模块 (routes/smoke_alarm.py)")
     print("="*60)
