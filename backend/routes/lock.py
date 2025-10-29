@@ -248,6 +248,21 @@ def delete_user(username):
         if not verify_user_password(username, password):
             return jsonify({'error': '密码验证失败'}), 401
         
+        # 删除用户前清理面部文件与特征缓存
+        try:
+            import os
+            face_path = get_user_face_image(username)
+            if face_path and os.path.exists(face_path):
+                os.remove(face_path)
+            # 删除缓存特征文件（如存在）
+            features_dir = os.path.join(os.path.dirname(face_path) if face_path else os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'user_images')), 'face_features')
+            features_file = os.path.join(features_dir, f"{username}_features.npy")
+            if os.path.exists(features_file):
+                os.remove(features_file)
+        except Exception:
+            # 文件清理失败不影响账户删除
+            pass
+
         # 删除用户
         delete_lock_user(username)
         

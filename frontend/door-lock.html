@@ -425,7 +425,7 @@
         <input type="text" id="fingerprintUsernameInput">
         
         <label for="fingerprintPasswordInput">密码</label>
-        <input type="password" id="fingerprintPasswordInput">
+        <input type="password" id="fingerprintPasswordInput" name="current-password" autocomplete="current-password">
       </div>
 
       <!-- 通用字段 -->
@@ -443,7 +443,7 @@
         <input type="text" id="regUsername">
 
         <label for="regPassword">密码</label>
-        <input type="password" id="regPassword">
+        <input type="password" id="regPassword" name="new-password" autocomplete="new-password">
 
         <label for="regFaceInput">面部图像（可选）</label>
         <input type="file" id="regFaceInput" accept="image/*" onchange="previewRegFace()">
@@ -465,7 +465,7 @@
         </select>
         
         <label for="deletePassword">用户密码</label>
-        <input type="password" id="deletePassword">
+        <input type="password" id="deletePassword" name="current-password" autocomplete="current-password">
         
         <div style="margin-top:8px;">
           <button id="btnLogoutUser" class="btn" type="button" style="background-color: #dc3545;">注销用户</button>
