@@ -218,16 +218,16 @@ def extract_face_features(image):
         print(f"提取人脸特征失败: {e}")
         return None
 
-def compare_face_features(features1, features2, threshold=0.5):
-    """比较两个人脸特征（多特征融合）"""
+def compare_face_features_with_score(features1, features2, threshold=0.5):
+    """比较两个人脸特征并返回匹配分数（0-1）"""
     try:
         if features1 is None or features2 is None:
-            return False
+            return 0.0
         
         # 检查是否检测到人脸
         if not features1.get('face_detected', False) or not features2.get('face_detected', False):
             print("至少有一张图像未检测到人脸")
-            return False
+            return 0.0
         
         match_scores = []
         
@@ -282,29 +282,24 @@ def compare_face_features(features1, features2, threshold=0.5):
         
         if not match_scores:
             print("没有可用的特征进行比较")
-            return False
+            return 0.0
         
-        # 计算加权平均分数（整体阈值适当放宽）
+        # 计算加权平均分数
         total_weight = sum(weight for _, _, weight in match_scores)
         weighted_score = sum(score * weight for _, score, weight in match_scores) / total_weight
         
-        print(f"综合匹配分数: {weighted_score:.3f} (阈值: {threshold})")
-        
-        # 判断是否匹配
-        is_match = weighted_score > (threshold or 0.30)
-        
-        # 额外检查：如果ORB分数特别高，即使总分略低于阈值也认为匹配
-        if not is_match and len(match_scores) > 0:
-            orb_scores = [score for name, score, _ in match_scores if name == 'ORB']
-            if orb_scores and orb_scores[0] > 0.10:  # ORB分数阈值进一步下调
-                print("ORB分数较高，调整匹配结果")
-                is_match = True
-        
-        return is_match
+        print(f"综合匹配分数: {weighted_score:.3f}")
+        return weighted_score
         
     except Exception as e:
         print(f"比较人脸特征失败: {e}")
-        return False
+        return 0.0
+
+def compare_face_features(features1, features2, threshold=0.5):
+    """比较两个人脸特征（多特征融合），返回布尔值"""
+    score = compare_face_features_with_score(features1, features2, threshold)
+    # 使用更严格的阈值避免误匹配
+    return score > (threshold or 0.35)
 
 def verify_face_recognition(username, face_image_data, registered_face_path):
     """验证人脸识别"""

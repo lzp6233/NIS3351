@@ -171,9 +171,25 @@ def lock_command(lock_id):
 
 
 def verify_face_recognition_all_users(face_image_data):
-    """遍历所有用户进行人脸识别验证，返回匹配的用户名（如果找到）"""
+    """遍历所有用户进行人脸识别验证，返回匹配的用户名（如果找到）
+    使用分数最高的用户，确保分数足够高且与其他用户有明显差距
+    """
     try:
-        from face_recognition_utils import verify_face_recognition as verify_face
+        from face_recognition_utils import (
+            decode_base64_image, extract_face_features, 
+            compare_face_features_with_score, load_image_from_file
+        )
+        
+        # 解码上传的图像并提取特征
+        uploaded_image = decode_base64_image(face_image_data)
+        if uploaded_image is None:
+            print("无法解码上传的图像")
+            return None
+        
+        uploaded_features = extract_face_features(uploaded_image)
+        if uploaded_features is None:
+            print("无法提取上传图像的特征")
+            return None
         
         # 获取所有注册用户
         all_users = get_all_lock_users()
@@ -181,24 +197,67 @@ def verify_face_recognition_all_users(face_image_data):
             print("数据库中没有任何注册用户")
             return None
         
+        # 存储所有用户的匹配分数
+        user_scores = []
+        
         # 遍历所有用户进行比对
         for username in all_users:
             registered_face_path = get_user_face_image(username)
             if not registered_face_path:
                 continue
             
-            # 验证人脸是否匹配
+            # 加载注册图像并提取特征
             try:
-                result = verify_face(username, face_image_data, registered_face_path)
-                if result:
-                    print(f"人脸识别匹配成功，用户: {username}")
-                    return username
+                registered_image = load_image_from_file(registered_face_path)
+                if registered_image is None:
+                    continue
+                
+                registered_features = extract_face_features(registered_image)
+                if registered_features is None:
+                    continue
+                
+                # 计算匹配分数
+                score = compare_face_features_with_score(uploaded_features, registered_features)
+                user_scores.append((username, score))
+                print(f"用户 {username} 匹配分数: {score:.3f}")
+                
             except Exception as e:
                 print(f"比对用户 {username} 时出错: {e}")
                 continue
         
-        print("人脸识别未找到匹配的用户")
-        return None
+        if not user_scores:
+            print("没有找到任何有效的用户进行比较")
+            return None
+        
+        # 按分数排序，找出分数最高的用户
+        user_scores.sort(key=lambda x: x[1], reverse=True)
+        best_username, best_score = user_scores[0]
+        
+        # 要求最低分数阈值（避免误匹配）
+        min_score_threshold = 0.35
+        
+        # 如果有多个用户，要求最高分数与第二高分数有明显差距（至少0.1）
+        if len(user_scores) > 1:
+            second_score = user_scores[1][1]
+            score_gap = best_score - second_score
+            
+            if best_score < min_score_threshold:
+                print(f"最高分数 {best_score:.3f} 低于阈值 {min_score_threshold}")
+                return None
+            
+            if score_gap < 0.1:
+                print(f"最高分数 {best_score:.3f} 与第二高分 {second_score:.3f} 差距太小 ({score_gap:.3f})，可能是误匹配")
+                return None
+            
+            print(f"匹配成功：用户 {best_username} (分数: {best_score:.3f}, 与第二名差距: {score_gap:.3f})")
+        else:
+            if best_score < min_score_threshold:
+                print(f"唯一用户分数 {best_score:.3f} 低于阈值 {min_score_threshold}")
+                return None
+            print(f"匹配成功：用户 {best_username} (分数: {best_score:.3f})")
+        
+        return best_username
+        
     except Exception as e:
         print(f"人脸识别验证失败: {e}")
         return None
