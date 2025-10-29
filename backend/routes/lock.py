@@ -7,7 +7,7 @@
 from flask import Blueprint, jsonify, request
 from database import (
     get_all_locks, get_lock_state, get_lock_events, 
-    insert_lock_event, verify_user_credentials, get_user_face_image,
+    insert_lock_event, verify_user_password, get_user_face_image,
     get_user_fingerprint_data, get_auto_lock_config, update_auto_lock_config,
     create_lock_user, get_all_lock_users, delete_lock_user, get_connection
 )
@@ -245,7 +245,7 @@ def delete_user(username):
             return jsonify({'error': '用户不存在'}), 404
         
         # 验证用户密码
-        if not verify_user_credentials(username, password, GLOBAL_PINCODE):
+        if not verify_user_password(username, password):
             return jsonify({'error': '密码验证失败'}), 401
         
         # 删除用户
@@ -295,7 +295,7 @@ def create_user():
 
     try:
         # 使用全局 PINCODE 存储到用户表中（所有用户共享同一 PIN）
-        create_lock_user(username=username, password=password, pincode=GLOBAL_PINCODE,
+        create_lock_user(username=username, password=password,
                          face_image_path=face_image_path, fingerprint_data=fingerprint_data)
         return jsonify({'status': 'created', 'username': username})
     except Exception as e:

@@ -303,6 +303,69 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* 居中弹窗样式 */
+    .popup-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+
+    .popup {
+      min-width: 300px;
+      max-width: 520px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      padding: 18px 20px;
+      text-align: left;
+      animation: popup-in 0.2s ease-out;
+    }
+
+    .popup-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 0 8px 0;
+      color: #2b4a8a;
+    }
+
+    .popup-message {
+      font-size: 14px;
+      color: #333;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .popup-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .popup-btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      background: #2b4a8a;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .popup-info .popup-title { color: #2b4a8a; }
+    .popup-success .popup-title { color: #28a745; }
+    .popup-error .popup-title { color: #dc3545; }
+
+    @keyframes popup-in {
+      from { transform: translateY(10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
   </style>
 </head>
 <body>
@@ -443,6 +506,17 @@
         <button type="button" onclick="updateAutoLockConfig()" class="btn-config">更新配置</button>
       </div>
       
+    </div>
+  </div>
+
+  <!-- 居中弹窗容器 -->
+  <div id="popupBackdrop" class="popup-backdrop" role="dialog" aria-hidden="true">
+    <div id="popup" class="popup popup-info" role="document">
+      <div id="popupTitle" class="popup-title">提示</div>
+      <div id="popupMessage" class="popup-message"></div>
+      <div class="popup-actions">
+        <button id="popupCloseBtn" class="popup-btn" type="button">知道了</button>
+      </div>
     </div>
   </div>
 

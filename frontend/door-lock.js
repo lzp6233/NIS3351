@@ -1,8 +1,8 @@
 
 const API_BASE = 'http://localhost:5000';
 const LOCK_ID = 'FRONT_DOOR';
-// 刷新控制
-let refreshInterval = 1000; // 默认1秒
+
+let refreshInterval = 1000; 
 let intervalId = null;
 let realtimeMode = false;
 let statusUpdateInterval = 1000; // 状态更新间隔1秒
@@ -15,16 +15,169 @@ let hasShownConnectionError = false;
 function handleConnectionError(error, context = '') {
     console.error(`连接错误 ${context}:`, error);
     
-    // 只在第一次出现连接错误时显示alert
+    // 只在第一次出现连接错误时显示弹窗
     if (!hasShownConnectionError) {
         hasShownConnectionError = true;
-        alert('无法连接到后端服务，请检查服务器是否正常运行');
+        showPopup('无法连接到后端服务，请检查服务器是否正常运行', { type: 'error', title: '连接错误' });
         
         // 5分钟后重置错误标志，允许再次提示
         setTimeout(() => {
             hasShownConnectionError = false;
         }, 5 * 60 * 1000);
     }
+}
+
+// 居中弹窗与确认对话框
+let popupTimer = null;
+
+function ensurePopupDom() {
+    if (document.getElementById('popupBackdrop')) return true;
+    const create = () => {
+        if (document.getElementById('popupBackdrop')) return true;
+        const backdrop = document.createElement('div');
+        backdrop.id = 'popupBackdrop';
+        backdrop.className = 'popup-backdrop';
+        backdrop.setAttribute('role', 'dialog');
+        backdrop.setAttribute('aria-hidden', 'true');
+        backdrop.innerHTML = `
+          <div id="popup" class="popup popup-info" role="document">
+            <div id="popupTitle" class="popup-title">提示</div>
+            <div id="popupMessage" class="popup-message"></div>
+            <div id="popupActions" class="popup-actions">
+              <button id="popupCloseBtn" class="popup-btn" type="button">知道了</button>
+            </div>
+          </div>`;
+        (document.body || document.documentElement).appendChild(backdrop);
+        return true;
+    };
+    if (document.readyState === 'loading' && !document.body) {
+        document.addEventListener('DOMContentLoaded', create, { once: true });
+        return false;
+    }
+    return create();
+}
+
+function showDialog({ title = '提示', message = '', type = 'info', buttons = [], autoCloseMs }) {
+    const ready = ensurePopupDom();
+    if (!ready) {
+        return new Promise((resolve) => {
+            const retry = () => {
+                showDialog({ title, message, type, buttons, autoCloseMs }).then(resolve);
+            };
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', retry, { once: true });
+            } else {
+                setTimeout(retry, 0);
+            }
+        });
+    }
+    const backdrop = document.getElementById('popupBackdrop');
+    const popup = document.getElementById('popup');
+    const titleEl = document.getElementById('popupTitle');
+    const messageEl = document.getElementById('popupMessage');
+    const actionsEl = document.getElementById('popupActions');
+
+    if (!backdrop || !popup || !titleEl || !messageEl || !actionsEl) {
+        // 再尝试一次创建并查询
+        setTimeout(ensurePopupDom, 0);
+        setTimeout(() => {}, 0);
+        const b2 = document.getElementById('popupBackdrop');
+        const p2 = document.getElementById('popup');
+        const t2 = document.getElementById('popupTitle');
+        const m2 = document.getElementById('popupMessage');
+        const a2 = document.getElementById('popupActions');
+        if (!b2 || !p2 || !t2 || !m2 || !a2) {
+            // 最后兜底：不再使用浏览器 alert，改为简单 DOM 注入
+            const div = document.createElement('div');
+            div.style.position = 'fixed';
+            div.style.inset = '0';
+            div.style.background = 'rgba(0,0,0,0.35)';
+            div.style.display = 'flex';
+            div.style.alignItems = 'center';
+            div.style.justifyContent = 'center';
+            div.style.zIndex = '3000';
+            div.innerHTML = `<div style="min-width:280px;max-width:520px;background:#fff;border-radius:12px;padding:16px 18px;font-family:inherit;">
+                <div style=\"font-weight:600;margin-bottom:6px;color:#2b4a8a;\">${title}</div>
+                <div style=\"color:#333;line-height:1.6;\">${message}</div>
+                <div style=\"text-align:right;margin-top:12px;\"><button id=\"tmpClose\" style=\"padding:6px 12px;border:none;border-radius:8px;background:#2b4a8a;color:#fff;\">知道了</button></div>
+            </div>`;
+            (document.body || document.documentElement).appendChild(div);
+            return new Promise((resolve)=>{
+                div.querySelector('#tmpClose').addEventListener('click', ()=>{ div.remove(); resolve(true); });
+            });
+        }
+    }
+
+    // 样式与内容
+    popup.classList.remove('popup-info', 'popup-success', 'popup-error');
+    popup.classList.add(`popup-${type}`);
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+
+    // 渲染按钮
+    actionsEl.innerHTML = '';
+    const disposers = [];
+    const close = (value) => {
+        backdrop.style.display = 'none';
+        disposers.forEach(fn => fn());
+        if (popupTimer) { clearTimeout(popupTimer); popupTimer = null; }
+        resolver && resolver(value);
+    };
+
+    let resolver;
+    const p = new Promise((resolve) => { resolver = resolve; });
+
+    const onBackdropClick = (e) => { if (e.target === backdrop) close(true); };
+    backdrop.addEventListener('click', onBackdropClick);
+    disposers.push(() => backdrop.removeEventListener('click', onBackdropClick));
+
+    if (!buttons || buttons.length === 0) {
+        buttons = [{ text: '知道了', value: true, primary: true }];
+    }
+    buttons.forEach((btn) => {
+        const b = document.createElement('button');
+        b.className = 'popup-btn';
+        b.textContent = btn.text;
+        if (btn.primary && type === 'error') {
+            // 错误时也保持主按钮样式一致
+        }
+        const onClick = () => close(btn.value);
+        b.addEventListener('click', onClick);
+        disposers.push(() => b.removeEventListener('click', onClick));
+        actionsEl.appendChild(b);
+    });
+
+    backdrop.style.display = 'flex';
+
+    const duration = typeof autoCloseMs === 'number' ? autoCloseMs : (type === 'error' ? 0 : 2200);
+    if (duration > 0 && buttons.length === 1) {
+        popupTimer = setTimeout(() => close(true), duration);
+    }
+
+    return p;
+}
+
+function showPopup(message, options = {}) {
+    const { type = 'info', title = '提示', autoCloseMs } = options;
+    return showDialog({ title, message, type, autoCloseMs });
+}
+
+function showConfirm(message, { title = '确认操作', type = 'info' } = {}) {
+    return showDialog({
+        title,
+        message,
+        type,
+        buttons: [
+            { text: '取消', value: false },
+            { text: '确定', value: true, primary: true }
+        ],
+        autoCloseMs: 0
+    });
+}
+
+function hidePopup() {
+    const backdrop = document.getElementById('popupBackdrop');
+    if (backdrop) backdrop.style.display = 'none';
 }
 
 // 更新锁状态显示
@@ -108,20 +261,20 @@ async function logoutUser() {
     console.log('输入的密码:', password ? '已填写' : '未填写');
     
     if (!selectedUser) {
-        alert('请选择要注销的用户');
+        showPopup('请选择要注销的用户', { type: 'error', title: '参数缺失' });
         return;
     }
     
     if (!password) {
-        alert('请输入要注销用户的密码进行验证');
+        showPopup('请输入要注销用户的密码进行验证', { type: 'error', title: '参数缺失' });
         return;
     }
     
-    if (!confirm(`确定要注销用户 "${selectedUser}" 吗？此操作不可撤销。`)) {
-        return;
-    }
+    const ok = await showConfirm(`确定要注销用户 "${selectedUser}" 吗？此操作不可撤销。`, { title: '请确认', type: 'error' });
+    if (!ok) return;
     
     try {
+    
         console.log('正在发送注销请求...', { password: password });
         const res = await fetch(`${API_BASE}/locks/users/${selectedUser}`, {
             method: 'DELETE',
@@ -139,7 +292,7 @@ async function logoutUser() {
         
         const result = await res.json();
         console.log('注销成功:', result);
-        alert(`用户 "${selectedUser}" 已成功注销`);
+        showPopup(`用户 "${selectedUser}" 已成功注销`, { type: 'success', title: '注销成功' });
         
         // 清空密码输入框
         document.getElementById('deletePassword').value = '';
@@ -149,7 +302,7 @@ async function logoutUser() {
         
     } catch (error) {
         console.error('注销用户失败:', error);
-        alert(`注销用户失败: ${error.message}`);
+        showPopup(`注销用户失败: ${error.message}`, { type: 'error', title: '操作失败' });
     }
 }
 
@@ -236,7 +389,7 @@ async function updateAutoLockConfig() {
     const delay = parseInt(document.getElementById('autoLockDelay').value);
     
     if (!delay || delay < 1 || delay > 60) {
-        alert('延迟时间必须在1-60秒之间');
+        showPopup('延迟时间必须在1-60秒之间', { type: 'error', title: '参数错误' });
         return;
     }
     
@@ -252,10 +405,10 @@ async function updateAutoLockConfig() {
         
         if (!res.ok) throw new Error('配置更新失败');
         
-        alert(`自动锁定配置已更新：解锁后${delay}秒自动上锁`);
+        showPopup(`自动锁定配置已更新：解锁后${delay}秒自动上锁`, { type: 'success', title: '更新成功' });
     } catch (error) {
         console.error('更新配置失败:', error);
-        alert('配置更新失败，请检查网络连接');
+        showPopup('配置更新失败，请检查网络连接', { type: 'error', title: '更新失败' });
     }
 }
 
@@ -304,7 +457,7 @@ async function sendLockCommand(action) {
             const pin = document.getElementById('pinInput').value.trim();
             
             if (!pin) {
-                alert('PINCODE方式需要填写PIN码');
+                showPopup('PINCODE方式需要填写PIN码', { type: 'error', title: '参数缺失' });
                 return;
             }
             
@@ -316,7 +469,7 @@ async function sendLockCommand(action) {
             const faceFile = document.getElementById('faceImageInput').files[0];
             
             if (!faceUsername || !faceFile) {
-                alert('面部识别需要填写用户名和上传面部图像');
+                showPopup('面部识别需要填写用户名和上传面部图像', { type: 'error', title: '参数缺失' });
                 return;
             }
             
@@ -331,7 +484,7 @@ async function sendLockCommand(action) {
             const fingerprintPassword = document.getElementById('fingerprintPasswordInput').value.trim();
             
             if (!fingerprintUsername || !fingerprintPassword) {
-                alert('指纹识别需要填写用户名和密码');
+                showPopup('指纹识别需要填写用户名和密码', { type: 'error', title: '参数缺失' });
                 return;
             }
             
@@ -357,7 +510,7 @@ async function sendLockCommand(action) {
         }
         
         const result = await res.json();
-        alert(`门锁${action === 'lock' ? '上锁' : '解锁'}命令已发送\n${result.auth_detail || ''}`);
+        showPopup(`门锁${action === 'lock' ? '上锁' : '解锁'}命令已发送\n${result.auth_detail || ''}`, { type: 'success', title: '已发送' });
         
         // 清空所有输入框
         clearAllInputs();
@@ -366,7 +519,7 @@ async function sendLockCommand(action) {
         setTimeout(loadLockState, 1000);
     } catch (error) {
         console.error('发送命令失败:', error);
-        alert(`命令发送失败: ${error.message}`);
+        showPopup(`命令发送失败: ${error.message}`, { type: 'error', title: '发送失败' });
         
         // 即使失败也清空输入框
         clearAllInputs();
@@ -440,7 +593,7 @@ async function registerUser() {
     console.log('面部图像:', faceFile ? '已选择' : '未选择');
     
     if (!username || !password) {
-        alert('用户名和密码是必填项');
+        showPopup('用户名和密码是必填项', { type: 'error', title: '参数缺失' });
         return;
     }
     
@@ -458,7 +611,7 @@ async function registerUser() {
             console.log('面部图像处理完成');
         } catch (error) {
             console.error('面部图像处理失败:', error);
-            alert('面部图像处理失败');
+            showPopup('面部图像处理失败', { type: 'error', title: '处理失败' });
             return;
         }
     }
@@ -481,7 +634,7 @@ async function registerUser() {
         
         const result = await res.json();
         console.log('注册成功:', result);
-        alert(`用户 ${result.username} 注册成功！`);
+        showPopup(`用户 ${result.username} 注册成功！`, { type: 'success', title: '注册成功' });
         
         // 清空表单
         document.getElementById('regUsername').value = '';
@@ -495,7 +648,7 @@ async function registerUser() {
         
     } catch (error) {
         console.error('注册失败:', error);
-        alert(`注册失败: ${error.message}`);
+        showPopup(`注册失败: ${error.message}`, { type: 'error', title: '注册失败' });
     }
 }
 
@@ -506,17 +659,17 @@ async function changePincode() {
     const confirmPin = document.getElementById('confirmPin').value.trim();
     
     if (!currentPin || !newPin || !confirmPin) {
-        alert('请填写所有字段');
+        showPopup('请填写所有字段', { type: 'error', title: '参数缺失' });
         return;
     }
     
     if (newPin !== confirmPin) {
-        alert('新PINCODE和确认PINCODE不一致');
+        showPopup('新PINCODE和确认PINCODE不一致', { type: 'error', title: '校验失败' });
         return;
     }
     
     if (newPin.length < 4) {
-        alert('新PINCODE长度至少4位');
+        showPopup('新PINCODE长度至少4位', { type: 'error', title: '格式不正确' });
         return;
     }
     
@@ -536,7 +689,7 @@ async function changePincode() {
         }
         
         const result = await res.json();
-        alert('PINCODE修改成功！');
+        showPopup('PINCODE修改成功！', { type: 'success', title: '修改成功' });
         
         // 清空表单
         document.getElementById('currentPin').value = '';
@@ -549,7 +702,7 @@ async function changePincode() {
         
     } catch (error) {
         console.error('修改PINCODE失败:', error);
-        alert(`修改PINCODE失败: ${error.message}`);
+        showPopup(`修改PINCODE失败: ${error.message}`, { type: 'error', title: '修改失败' });
     }
 }
 

@@ -55,7 +55,6 @@ def get_connection():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username VARCHAR(50) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
-                pincode VARCHAR(10) NOT NULL,
                 face_image_path VARCHAR(255),
                 fingerprint_data TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -501,7 +500,7 @@ def get_lock_events(lock_id, limit=50):
 
 # ==================== 用户认证功能 ====================
 
-def create_lock_user(username, password, pincode, face_image_path=None, fingerprint_data=None):
+def create_lock_user(username, password, face_image_path=None, fingerprint_data=None):
     """创建门锁用户"""
     import hashlib
     password_hash = hashlib.sha256(password.encode()).hexdigest()
@@ -511,17 +510,17 @@ def create_lock_user(username, password, pincode, face_image_path=None, fingerpr
         if DB_TYPE == 'sqlite':
             cur = conn.cursor()
             cur.execute(
-                """INSERT INTO lock_users (username, password_hash, encrypted_pincode, face_image_path, fingerprint_data)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (username, password_hash, pincode, face_image_path, fingerprint_data)
+                """INSERT INTO lock_users (username, password_hash, face_image_path, fingerprint_data)
+                   VALUES (?, ?, ?, ?)""",
+                (username, password_hash, face_image_path, fingerprint_data)
             )
             conn.commit()
         else:
             stmt = conn.prepare("""
-                INSERT INTO lock_users (username, password_hash, pincode, face_image_path, fingerprint_data, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+                INSERT INTO lock_users (username, password_hash, face_image_path, fingerprint_data, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, NOW(), NOW())
             """)
-            stmt(username, password_hash, pincode, face_image_path, fingerprint_data)
+            stmt(username, password_hash, face_image_path, fingerprint_data)
     finally:
         conn.close()
 
@@ -560,17 +559,9 @@ def delete_lock_user(username):
         conn.close()
 
 
-def verify_user_credentials(username, password, pincode):
-    """验证用户凭据：用户名 + 密码（用户各自）且 PINCODE 必须与全局 PIN 一致
-
-    说明：根据新需求，PINCODE 为全局一致值（配置为 GLOBAL_PINCODE）。
-    验证步骤：1) 检查用户名与密码是否匹配；2) 检查提供的 pincode 与全局 PIN 相同。
-    """
+def verify_user_password(username, password):
+    """仅校验用户名 + 密码是否匹配（不再校验全局 PIN）"""
     import hashlib
-    from config import GLOBAL_PINCODE
-
-    if str(pincode) != str(GLOBAL_PINCODE):
-        return False
 
     password_hash = hashlib.sha256(password.encode()).hexdigest()
     conn = get_connection()

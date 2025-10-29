@@ -174,8 +174,13 @@ def extract_face_features(image):
         
         face_roi = gray[y_start:y_end, x_start:x_end]
         
-        # 调整大小到标准尺寸
+        # 调整大小到标准尺寸并进行光照归一化
         face_resized = cv2.resize(face_roi, (128, 128))
+        try:
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            face_resized = clahe.apply(face_resized)
+        except Exception:
+            face_resized = cv2.equalizeHist(face_resized)
         
         # 计算多种特征以提高识别准确性
         
@@ -184,7 +189,7 @@ def extract_face_features(image):
         hist_normalized = cv2.normalize(hist, hist).flatten()
         
         # 2. ORB 描述子
-        orb = cv2.ORB_create(nfeatures=500)
+        orb = cv2.ORB_create(nfeatures=800)
         keypoints, descriptors = orb.detectAndCompute(face_resized, None)
         
         # 3. LBP (Local Binary Pattern) 特征
@@ -231,12 +236,12 @@ def compare_face_features(features1, features2, threshold=0.5):
                 for m_n in matches:
                     if len(m_n) == 2:
                         m, n = m_n
-                        if m.distance < 0.75 * n.distance:
+                        if m.distance < 0.80 * n.distance:
                             good_matches.append(m)
                 
                 # 计算ORB匹配分数
                 orb_score = len(good_matches) / max(len(desc1), len(desc2))
-                match_scores.append(('ORB', orb_score, 0.4))  # 权重40%
+                match_scores.append(('ORB', orb_score, 0.5))  # 权重50%
                 print(f"ORB匹配分数: {orb_score:.3f}")
             except Exception as e:
                 print(f"ORB匹配失败: {e}")
@@ -246,7 +251,7 @@ def compare_face_features(features1, features2, threshold=0.5):
         h2 = features2.get('hist')
         if h1 is not None and h2 is not None:
             hist_correlation = cv2.compareHist(h1, h2, cv2.HISTCMP_CORREL)
-            match_scores.append(('Histogram', hist_correlation, 0.3))  # 权重30%
+            match_scores.append(('Histogram', hist_correlation, 0.25))  # 权重25%
             print(f"直方图相关系数: {hist_correlation:.3f}")
         
         # 3. LBP特征比较
@@ -254,7 +259,7 @@ def compare_face_features(features1, features2, threshold=0.5):
         lbp2 = features2.get('lbp')
         if lbp1 is not None and lbp2 is not None:
             lbp_correlation = cv2.compareHist(lbp1, lbp2, cv2.HISTCMP_CORREL)
-            match_scores.append(('LBP', lbp_correlation, 0.2))  # 权重20%
+            match_scores.append(('LBP', lbp_correlation, 0.15))  # 权重15%
             print(f"LBP相关系数: {lbp_correlation:.3f}")
         
         # 4. 图像哈希比较
@@ -271,19 +276,19 @@ def compare_face_features(features1, features2, threshold=0.5):
             print("没有可用的特征进行比较")
             return False
         
-        # 计算加权平均分数
+        # 计算加权平均分数（整体阈值适当放宽）
         total_weight = sum(weight for _, _, weight in match_scores)
         weighted_score = sum(score * weight for _, score, weight in match_scores) / total_weight
         
         print(f"综合匹配分数: {weighted_score:.3f} (阈值: {threshold})")
         
         # 判断是否匹配
-        is_match = weighted_score > threshold
+        is_match = weighted_score > (threshold or 0.35)
         
         # 额外检查：如果ORB分数特别高，即使总分略低于阈值也认为匹配
         if not is_match and len(match_scores) > 0:
             orb_scores = [score for name, score, _ in match_scores if name == 'ORB']
-            if orb_scores and orb_scores[0] > 0.3:  # ORB分数超过0.3
+            if orb_scores and orb_scores[0] > 0.15:  # ORB分数阈值下调
                 print("ORB分数较高，调整匹配结果")
                 is_match = True
         
