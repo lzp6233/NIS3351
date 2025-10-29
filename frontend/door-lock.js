@@ -213,7 +213,6 @@ function clearAllInputs() {
     document.getElementById('pinInput').value = '';
     
     // 清空面部识别输入
-    document.getElementById('faceUsernameInput').value = '';
     document.getElementById('faceImageInput').value = '';
     document.getElementById('faceImagePreview').innerHTML = '';
     
@@ -465,17 +464,15 @@ async function sendLockCommand(action) {
             break;
             
         case 'FACE':
-            const faceUsername = document.getElementById('faceUsernameInput').value.trim();
             const faceFile = document.getElementById('faceImageInput').files[0];
             
-            if (!faceUsername || !faceFile) {
-                showPopup('面部识别需要填写用户名和上传面部图像', { type: 'error', title: '参数缺失' });
+            if (!faceFile) {
+                showPopup('面部识别需要上传面部图像', { type: 'error', title: '参数缺失' });
                 return;
             }
             
             // 将图像转换为base64
             const faceImageData = await fileToBase64(faceFile);
-            body.username = faceUsername;
             body.face_image = faceImageData;
             break;
             

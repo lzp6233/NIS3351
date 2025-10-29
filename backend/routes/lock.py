@@ -125,11 +125,17 @@ def lock_command(lock_id):
         auth_detail = "PINCODE认证" + ("成功" if auth_success else "失败")
         
     elif method == "FACE":
-        if not all([username, face_image]):
-            return jsonify({"error": "面部识别需要用户名和面部图像"}), 400
-        # 模拟面部识别验证
-        auth_success = verify_face_recognition(username, face_image)
-        auth_detail = "面部识别" + ("成功" if auth_success else "失败")
+        if not face_image:
+            return jsonify({"error": "面部识别需要上传面部图像"}), 400
+        # 遍历所有用户进行人脸识别验证
+        matched_username = verify_face_recognition_all_users(face_image)
+        if matched_username:
+            auth_success = True
+            username = matched_username  # 更新username为匹配到的用户
+            auth_detail = f"面部识别成功 - 用户: {username}"
+        else:
+            auth_success = False
+            auth_detail = "面部识别失败 - 未找到匹配的用户"
         
     elif method == "FINGERPRINT":
         if not all([username, password]):
@@ -164,23 +170,38 @@ def lock_command(lock_id):
     return jsonify({"status": "sent", "auth_detail": auth_detail})
 
 
-def verify_face_recognition(username, face_image_data):
-    """真正的人脸识别验证"""
-    # 获取用户注册的面部图像路径
-    registered_face_path = get_user_face_image(username)
-    if not registered_face_path:
-        print(f"用户 {username} 未找到注册的面部图像")
-        return False
-    
-    # 使用真正的人脸识别算法进行验证
+def verify_face_recognition_all_users(face_image_data):
+    """遍历所有用户进行人脸识别验证，返回匹配的用户名（如果找到）"""
     try:
         from face_recognition_utils import verify_face_recognition as verify_face
-        result = verify_face(username, face_image_data, registered_face_path)
-        print(f"用户 {username} 人脸识别结果: {result}")
-        return result
+        
+        # 获取所有注册用户
+        all_users = get_all_lock_users()
+        if not all_users:
+            print("数据库中没有任何注册用户")
+            return None
+        
+        # 遍历所有用户进行比对
+        for username in all_users:
+            registered_face_path = get_user_face_image(username)
+            if not registered_face_path:
+                continue
+            
+            # 验证人脸是否匹配
+            try:
+                result = verify_face(username, face_image_data, registered_face_path)
+                if result:
+                    print(f"人脸识别匹配成功，用户: {username}")
+                    return username
+            except Exception as e:
+                print(f"比对用户 {username} 时出错: {e}")
+                continue
+        
+        print("人脸识别未找到匹配的用户")
+        return None
     except Exception as e:
         print(f"人脸识别验证失败: {e}")
-        return False
+        return None
 
 
 def verify_fingerprint(username, fingerprint_data):
