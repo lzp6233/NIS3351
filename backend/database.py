@@ -621,27 +621,32 @@ def get_lock_events(lock_id, limit=50):
 
 # ==================== 用户认证功能 ====================
 
-def create_lock_user(username, password, face_image_path=None, fingerprint_data=None):
+def create_lock_user(username, password, pincode=None, face_image_path=None, fingerprint_data=None):
     """创建门锁用户"""
     import hashlib
     password_hash = hashlib.sha256(password.encode()).hexdigest()
-    
+
+    # 如果没有提供 pincode，使用全局 PINCODE
+    if pincode is None:
+        from pincode_config import get_pincode
+        pincode = get_pincode()
+
     conn = get_connection()
     try:
         if DB_TYPE == 'sqlite':
             cur = conn.cursor()
             cur.execute(
-                """INSERT INTO lock_users (username, password_hash, face_image_path, fingerprint_data)
-                   VALUES (?, ?, ?, ?)""",
-                (username, password_hash, face_image_path, fingerprint_data)
+                """INSERT INTO lock_users (username, password_hash, pincode, face_image_path, fingerprint_data)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (username, password_hash, pincode, face_image_path, fingerprint_data)
             )
             conn.commit()
         else:
             stmt = conn.prepare("""
-                INSERT INTO lock_users (username, password_hash, face_image_path, fingerprint_data, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, NOW(), NOW())
+                INSERT INTO lock_users (username, password_hash, pincode, face_image_path, fingerprint_data, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
             """)
-            stmt(username, password_hash, face_image_path, fingerprint_data)
+            stmt(username, password_hash, pincode, face_image_path, fingerprint_data)
     finally:
         conn.close()
 

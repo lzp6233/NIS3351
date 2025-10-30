@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>全屋灯具控制 - 智能家居</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* WebSocket 通知动画 */
+        @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(400px); opacity: 0; }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -102,6 +113,8 @@
         </div>
     </div>
 
+    <!-- Socket.IO 客户端库 -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="lighting.js"></script>
 </body>
 </html>

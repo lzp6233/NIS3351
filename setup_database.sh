@@ -149,14 +149,26 @@ echo ""
 echo -e "${YELLOW}步骤 4/4: 初始化应用数据...${NC}"
 
 # 检查 Python 虚拟环境
-if [ ! -d "venv" ]; then
-    echo -e "${YELLOW}⚠ 未找到 Python 虚拟环境，正在创建...${NC}"
-    python3 -m venv venv
+VENV_FOUND=0
+if [ -d "venv" ]; then
+    echo -e "${GREEN}✓ 找到虚拟环境 'venv'${NC}"
     source venv/bin/activate
+    VENV_FOUND=1
+elif [ -d "database" ]; then
+    echo -e "${GREEN}✓ 找到虚拟环境 'database'${NC}"
+    source database/bin/activate
+    VENV_FOUND=1
+elif [ -n "$VIRTUAL_ENV" ]; then
+    echo -e "${GREEN}✓ 检测到已激活的虚拟环境: $VIRTUAL_ENV${NC}"
+    VENV_FOUND=1
+fi
+
+if [ $VENV_FOUND -eq 0 ]; then
+    echo -e "${YELLOW}⚠ 未找到 Python 虚拟环境，正在创建...${NC}"
+    python3 -m venv database
+    source database/bin/activate
     pip install -r requirements.txt > /dev/null 2>&1
     echo -e "${GREEN}✓ 虚拟环境创建完成${NC}"
-else
-    source venv/bin/activate
 fi
 
 # 运行初始化脚本
@@ -203,12 +215,19 @@ echo "  - lighting_state (灯具状态)"
 echo "  - lighting_events (灯具事件)"
 echo "  - smoke_alarm_state (烟雾报警器状态)"
 echo "  - smoke_alarm_events (烟雾报警器事件)"
+echo "  - rooms (房间管理)"
 echo ""
-echo "已初始化的数据："
-echo "  - 空调: ac_room1, ac_room2"
-echo "  - 门锁: FRONT_DOOR"
-echo "  - 灯具: light_room1, light_room2, light_living, light_kitchen"
-echo "  - 烟雾报警器: smoke_living_room, smoke_bedroom, smoke_kitchen"
+echo "已初始化的房间："
+echo "  - living (客厅)"
+echo "  - bedroom1 (主卧)"
+echo "  - bedroom2 (次卧)"
+echo "  - kitchen (厨房)"
+echo ""
+echo "已初始化的设备："
+echo "  空调: ac_living, ac_bedroom1, ac_bedroom2, ac_kitchen"
+echo "  门锁: FRONT_DOOR"
+echo "  灯具: light_living, light_bedroom1, light_bedroom2, light_kitchen"
+echo "  烟雾报警器: smoke_living, smoke_bedroom1, smoke_bedroom2, smoke_kitchen"
 echo ""
 echo "下一步："
 echo "  1. 启动系统: sh run.sh"

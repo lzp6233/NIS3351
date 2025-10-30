@@ -22,9 +22,8 @@ from config import MQTT_BROKER, MQTT_PORT, LIGHTING_CHECK_INTERVAL, LIGHTING_BRI
 
 # 灯具配置
 LIGHTS = {
-    "light_room1": {"device_id": "room1", "name": "卧室1"},
-    "light_room2": {"device_id": "room2", "name": "卧室2"},
-    "light_living": {"device_id": "living", "name": "客厅"},
+    "light_living_room": {"device_id": "living_room", "name": "客厅"},
+    "light_bedroom": {"device_id": "bedroom", "name": "卧室"},
     "light_kitchen": {"device_id": "kitchen", "name": "厨房"}
 }
 
