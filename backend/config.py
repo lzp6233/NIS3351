@@ -64,6 +64,18 @@ DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 # 温湿度传感器数据发送间隔（秒）
 INTERVAL = int(os.getenv("SENSOR_INTERVAL", "5"))
 
+# 烟雾报警器数据发送间隔（秒）
+SMOKE_ALARM_INTERVAL = int(os.getenv("SMOKE_ALARM_INTERVAL", "3"))
+
+# 照明系统配置
+# 房间亮度检测间隔（秒）
+LIGHTING_CHECK_INTERVAL = int(os.getenv("LIGHTING_CHECK_INTERVAL", "30"))
+# 自动开灯的房间亮度阈值（lux）
+LIGHTING_BRIGHTNESS_THRESHOLD = float(os.getenv("LIGHTING_BRIGHTNESS_THRESHOLD", "30"))
+
+# 前端静态服务端口
+FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", "8000"))
+
 # 要模拟的温湿度传感器设备列表
 SENSORS = [
     {

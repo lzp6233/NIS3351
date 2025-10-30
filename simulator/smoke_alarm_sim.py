@@ -16,7 +16,7 @@ backend_dir = os.path.join(current_dir, '..', 'backend')
 sys.path.insert(0, backend_dir)
 
 # 从统一的配置文件导入
-from config import MQTT_BROKER, MQTT_PORT
+from config import MQTT_BROKER, MQTT_PORT, SMOKE_ALARM_INTERVAL
 
 # 烟雾报警器配置
 SMOKE_ALARMS = [
@@ -39,9 +39,6 @@ SMOKE_ALARMS = [
         "alarm_threshold": 25.0   # 厨房阈值较低
     }
 ]
-
-# 模拟间隔（秒）
-INTERVAL = 3
 
 # 每个设备的当前状态
 device_states = {}
@@ -259,7 +256,7 @@ def main():
             for alarm_config in SMOKE_ALARMS:
                 publish_state(client, alarm_config)
 
-            time.sleep(INTERVAL)
+            time.sleep(SMOKE_ALARM_INTERVAL)
 
     except KeyboardInterrupt:
         print("\n正在停止烟雾报警器模拟器...")
