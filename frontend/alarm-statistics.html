@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>统计分析 - NIS3351智慧家居</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        nav {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            font-weight: 500;
+            transition: opacity 0.3s;
+        }
+
+        nav a:hover {
+            opacity: 0.8;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .panel-title {
+            font-size: 1.8em;
+            color: #333;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+        }
+
+        .stat-value {
+            font-size: 3em;
+            font-weight: bold;
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        .stat-label {
+            font-size: 1em;
+            opacity: 0.95;
+            position: relative;
+        }
+
+        .stat-trend {
+            font-size: 0.85em;
+            margin-top: 8px;
+            opacity: 0.9;
+            position: relative;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 30px;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+        }
+
+        .filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filters label {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .filters select,
+        .filters input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 0.95em;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .device-comparison {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .device-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #007bff;
+        }
+
+        .device-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #666;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .health-score {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .health-bar {
+            flex: 1;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .health-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #dc3545, #ffc107, #28a745);
+            transition: width 0.5s;
+        }
+
+        .health-score-value {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #666;
+            font-size: 1.2em;
+        }
+
+        .summary-boxes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .summary-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .summary-box-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .summary-box-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .trend-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .trend-up {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .trend-down {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .date-range-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+
+        .tab-btn:hover {
+            color: #007bff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="index.html">首页</a>
+            <a href="smoke-alarm.html">烟雾报警器</a>
+            <a href="alarm-dashboard.html">报警仪表板</a>
+            <a href="alarm-statistics.html" style="font-weight: bold;">统计分析</a>
+            <a href="device-maintenance.html">设备维护</a>
+            <a href="automation-rules.html">自动化规则</a>
+            <a href="room-management.html">房间管理</a>
+        </nav>
+
+        <header>
+            <h1>📊 统计分析</h1>
+            <p>分析报警数据，优化系统性能</p>
+        </header>
+
+        <!-- 统计概览 -->
+        <div class="panel">
+            <h2 class="panel-title">系统概览</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-alarms">0</div>
+                    <div class="stat-label">总报警次数</div>
+                    <div class="stat-trend" id="alarm-trend">--</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                    <div class="stat-value" id="false-alarm-rate">0%</div>
+                    <div class="stat-label">误报率</div>
+                    <div class="stat-trend" id="false-alarm-trend">--</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);">
+                    <div class="stat-value" id="avg-response-time">0s</div>
+                    <div class="stat-label">平均响应时间</div>
+                    <div class="stat-trend" id="response-trend">--</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                    <div class="stat-value" id="system-health">100%</div>
+                    <div class="stat-label">系统健康度</div>
+                    <div class="stat-trend">✓ 优秀</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据筛选 -->
+        <div class="panel">
+            <div class="date-range-selector">
+                <label>时间范围:</label>
+                <select id="date-range" onchange="loadStatistics()">
+                    <option value="7">最近7天</option>
+                    <option value="30" selected>最近30天</option>
+                    <option value="90">最近90天</option>
+                    <option value="365">最近一年</option>
+                </select>
+
+                <label style="margin-left: 20px;">设备:</label>
+                <select id="device-filter" onchange="loadStatistics()">
+                    <option value="">全部设备</option>
+                </select>
+
+                <button class="btn btn-primary" onclick="loadStatistics()" style="margin-left: auto;">
+                    🔄 刷新数据
+                </button>
+            </div>
+        </div>
+
+        <!-- 标签页 -->
+        <div class="panel">
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="switchTab('overview')">总览</button>
+                <button class="tab-btn" onclick="switchTab('trends')">趋势分析</button>
+                <button class="tab-btn" onclick="switchTab('devices')">设备对比</button>
+                <button class="tab-btn" onclick="switchTab('performance')">性能评估</button>
+            </div>
+
+            <!-- 总览标签页 -->
+            <div id="tab-overview" class="tab-content active">
+                <div class="summary-boxes">
+                    <div class="summary-box">
+                        <div class="summary-box-value" id="real-alarms">0</div>
+                        <div class="summary-box-label">真实报警</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-box-value" id="false-alarms">0</div>
+                        <div class="summary-box-label">误报次数</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-box-value" id="acknowledged-alarms">0</div>
+                        <div class="summary-box-label">已确认</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-box-value" id="unacknowledged-alarms">0</div>
+                        <div class="summary-box-label">未确认</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="alarm-overview-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- 趋势分析标签页 -->
+            <div id="tab-trends" class="tab-content">
+                <div class="chart-grid">
+                    <div class="chart-container">
+                        <h3 style="margin-bottom: 15px;">报警趋势</h3>
+                        <canvas id="alarm-trend-chart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3 style="margin-bottom: 15px;">误报率趋势</h3>
+                        <canvas id="false-alarm-trend-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3 style="margin-bottom: 15px;">每日报警分布</h3>
+                    <canvas id="daily-distribution-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- 设备对比标签页 -->
+            <div id="tab-devices" class="tab-content">
+                <div id="device-comparison" class="device-comparison">
+                    <div class="loading">正在加载设备数据...</div>
+                </div>
+            </div>
+
+            <!-- 性能评估标签页 -->
+            <div id="tab-performance" class="tab-content">
+                <div class="summary-boxes">
+                    <div class="summary-box">
+                        <div class="summary-box-value" id="avg-smoke-level">0%</div>
+                        <div class="summary-box-label">平均烟雾浓度</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-box-value" id="max-smoke-level">0%</div>
+                        <div class="summary-box-label">最高烟雾浓度</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-box-value" id="low-battery-count">0</div>
+                        <div class="summary-box-label">低电量设备</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-box-value" id="maintenance-due">0</div>
+                        <div class="summary-box-label">待维护设备</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3 style="margin-bottom: 15px;">设备健康度评分</h3>
+                    <canvas id="health-score-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Socket.IO 客户端库 -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';
+        let allAlarms = [];
+        let allEvents = [];
+        let statistics = null;
+        let charts = {};
+        let socket;
+
+        // 页面加载时初始化
+        window.onload = async function() {
+            await loadAlarms();
+            await loadEvents();
+            await loadStatistics();
+            // 初始化WebSocket
+            initWebSocket();
+        };
+
+        // 初始化WebSocket连接
+        function initWebSocket() {
+            try {
+                socket = io(API_BASE, {
+                    transports: ['websocket', 'polling'],
+                    reconnection: true,
+                    reconnectionDelay: 1000,
+                    reconnectionAttempts: 5
+                });
+
+                socket.on('connect', () => {
+                    console.log('✓ WebSocket 已连接 - 统计页面将实时更新');
+                });
+
+                socket.on('disconnect', () => {
+                    console.log('✗ WebSocket 已断开');
+                });
+
+                // 监听烟雾报警器状态更新
+                socket.on('smoke_alarm_state_update', (data) => {
+                    console.log('📨 统计页面收到状态更新:', data);
+                    handleRealtimeUpdate(data);
+                });
+
+                // 监听烟雾报警器事件
+                socket.on('smoke_alarm_event', (data) => {
+                    console.log('🚨 统计页面收到事件:', data);
+                    handleRealtimeEvent(data);
+                });
+
+                socket.on('connect_error', (error) => {
+                    console.error('WebSocket 连接错误:', error);
+                });
+            } catch (error) {
+                console.error('初始化WebSocket失败:', error);
+            }
+        }
+
+        // 处理实时状态更新
+        function handleRealtimeUpdate(data) {
+            // 更新本地数据
+            const index = allAlarms.findIndex(a => a.alarm_id === data.alarm_id);
+            if (index !== -1) {
+                allAlarms[index].smoke_level = data.smoke_level;
+                allAlarms[index].alarm_active = data.alarm_active;
+                allAlarms[index].battery = data.battery;
+                allAlarms[index].test_mode = data.test_mode;
+            }
+
+            // 更新设备对比卡片
+            updateDeviceComparison();
+
+            // 更新性能指标
+            updatePerformanceMetrics();
+        }
+
+        // 处理实时事件
+        function handleRealtimeEvent(data) {
+            // 添加到事件列表
+            allEvents.unshift({
+                alarm_id: data.alarm_id,
+                event_type: data.event_type,
+                smoke_level: data.smoke_level,
+                detail: data.detail,
+                timestamp: new Date().toISOString()
+            });
+
+            // 限制列表长度
+            if (allEvents.length > 1000) {
+                allEvents = allEvents.slice(0, 1000);
+            }
+
+            // 如果是报警事件，更新统计数据
+            if (data.event_type === 'ALARM_TRIGGERED') {
+                // 触发统计数据刷新
+                debounceReloadStatistics();
+            }
+        }
+
+        // 防抖重新加载统计数据
+        let reloadTimer;
+        function debounceReloadStatistics() {
+            clearTimeout(reloadTimer);
+            reloadTimer = setTimeout(() => {
+                loadStatistics();
+            }, 2000); // 2秒后刷新统计
+        }
+
+        // 更新性能指标
+        function updatePerformanceMetrics() {
+            // 更新平均烟雾浓度
+            const avgSmoke = allAlarms.reduce((sum, a) => sum + a.smoke_level, 0) / allAlarms.length;
+            document.getElementById('avg-smoke-level').textContent = `${avgSmoke.toFixed(1)}%`;
+
+            // 更新最高烟雾浓度
+            const maxSmoke = Math.max(...allAlarms.map(a => a.smoke_level));
+            document.getElementById('max-smoke-level').textContent = `${maxSmoke.toFixed(1)}%`;
+
+            // 更新低电量设备数
+            const lowBattery = allAlarms.filter(a => (a.battery || 100) < 20).length;
+            document.getElementById('low-battery-count').textContent = lowBattery;
+        }
+
+        // 页面卸载时断开连接
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+
+        // 加载报警器列表
+        async function loadAlarms() {
+            try {
+                const response = await fetch(`${API_BASE}/smoke_alarms`);
+                allAlarms = await response.json();
+
+                const select = document.getElementById('device-filter');
+                allAlarms.forEach(alarm => {
+                    const option = document.createElement('option');
+                    option.value = alarm.alarm_id;
+                    option.textContent = `${alarm.alarm_id} (${alarm.location || '未知位置'})`;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('加载报警器失败:', error);
+            }
+        }
+
+        // 加载事件数据
+        async function loadEvents() {
+            try {
+                const response = await fetch(`${API_BASE}/smoke_alarms/events?limit=1000`);
+                const data = await response.json();
+                allEvents = data.events || [];
+            } catch (error) {
+                console.error('加载事件失败:', error);
+            }
+        }
+
+        // 加载统计数据
+        async function loadStatistics() {
+            try {
+                const days = document.getElementById('date-range').value;
+                const device = document.getElementById('device-filter').value;
+
+                let url = `${API_BASE}/smoke_alarms/statistics?days=${days}`;
+                if (device) {
+                    url += `&alarm_id=${device}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success) {
+                    statistics = data.statistics;
+                    updateOverviewStats();
+                    updateCharts();
+                    updateDeviceComparison();
+                }
+            } catch (error) {
+                console.error('加载统计数据失败:', error);
+            }
+        }
+
+        // 更新概览统计
+        function updateOverviewStats() {
+            if (!statistics) return;
+
+            document.getElementById('total-alarms').textContent = statistics.total_alarms || 0;
+            document.getElementById('false-alarm-rate').textContent =
+                `${((statistics.false_alarms / statistics.total_alarms * 100) || 0).toFixed(1)}%`;
+            document.getElementById('avg-response-time').textContent =
+                `${statistics.avg_response_time || 0}s`;
+
+            // 计算系统健康度
+            const health = calculateSystemHealth(statistics);
+            document.getElementById('system-health').textContent = `${health}%`;
+
+            // 更新详细统计
+            document.getElementById('real-alarms').textContent = statistics.real_alarms || 0;
+            document.getElementById('false-alarms').textContent = statistics.false_alarms || 0;
+            document.getElementById('acknowledged-alarms').textContent = statistics.acknowledged || 0;
+            document.getElementById('unacknowledged-alarms').textContent =
+                (statistics.total_alarms - (statistics.acknowledged || 0)) || 0;
+        }
+
+        // 更新图表
+        function updateCharts() {
+            updateOverviewChart();
+            updateTrendCharts();
+            updateHealthScoreChart();
+        }
+
+        // 更新总览图表
+        function updateOverviewChart() {
+            const ctx = document.getElementById('alarm-overview-chart');
+
+            if (charts.overview) {
+                charts.overview.destroy();
+            }
+
+            charts.overview = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['真实报警', '误报', '未确认'],
+                    datasets: [{
+                        data: [
+                            statistics.real_alarms || 0,
+                            statistics.false_alarms || 0,
+                            statistics.total_alarms - (statistics.acknowledged || 0)
+                        ],
+                        backgroundColor: ['#28a745', '#ffc107', '#dc3545']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        title: {
+                            display: true,
+                            text: '报警分布概览'
+                        }
+                    }
+                }
+            });
+        }
+
+        // 更新趋势图表
+        function updateTrendCharts() {
+            // 模拟趋势数据（实际应从后端获取）
+            const days = parseInt(document.getElementById('date-range').value);
+            const dates = [];
+            const alarmCounts = [];
+            const falseAlarmRates = [];
+
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                dates.push(date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }));
+
+                // 模拟数据
+                alarmCounts.push(Math.floor(Math.random() * 10));
+                falseAlarmRates.push(Math.floor(Math.random() * 30));
+            }
+
+            // 报警趋势图
+            const trendCtx = document.getElementById('alarm-trend-chart');
+            if (charts.trend) charts.trend.destroy();
+
+            charts.trend = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: '报警次数',
+                        data: alarmCounts,
+                        borderColor: '#dc3545',
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // 误报率趋势图
+            const falseAlarmCtx = document.getElementById('false-alarm-trend-chart');
+            if (charts.falseAlarmTrend) charts.falseAlarmTrend.destroy();
+
+            charts.falseAlarmTrend = new Chart(falseAlarmCtx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: '误报率 (%)',
+                        data: falseAlarmRates,
+                        borderColor: '#ffc107',
+                        backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // 每日分布图
+            const distributionCtx = document.getElementById('daily-distribution-chart');
+            if (charts.distribution) charts.distribution.destroy();
+
+            const hourlyData = Array(24).fill(0).map(() => Math.floor(Math.random() * 5));
+
+            charts.distribution = new Chart(distributionCtx, {
+                type: 'bar',
+                data: {
+                    labels: Array(24).fill(0).map((_, i) => `${i}:00`),
+                    datasets: [{
+                        label: '报警次数',
+                        data: hourlyData,
+                        backgroundColor: '#667eea'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // 更新设备对比
+        function updateDeviceComparison() {
+            const container = document.getElementById('device-comparison');
+            container.innerHTML = '';
+
+            allAlarms.forEach(alarm => {
+                const alarmEvents = allEvents.filter(e => e.alarm_id === alarm.alarm_id);
+                const alarmTriggered = alarmEvents.filter(e => e.event_type === 'ALARM_TRIGGERED').length;
+                const health = calculateDeviceHealth(alarm, alarmEvents);
+
+                const card = document.createElement('div');
+                card.className = 'device-card';
+                card.innerHTML = `
+                    <div class="device-name">${alarm.alarm_id}</div>
+                    <div class="metric-row">
+                        <span class="metric-label">位置</span>
+                        <span class="metric-value">${alarm.location || '未知'}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">报警次数</span>
+                        <span class="metric-value">${alarmTriggered}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">当前烟雾浓度</span>
+                        <span class="metric-value">${alarm.smoke_level.toFixed(1)}%</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">电池电量</span>
+                        <span class="metric-value">${alarm.battery || 100}%</span>
+                    </div>
+                    <div class="health-score">
+                        <span>健康度:</span>
+                        <div class="health-bar">
+                            <div class="health-bar-fill" style="width: ${health}%"></div>
+                        </div>
+                        <span class="health-score-value">${health}%</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // 更新健康度评分图表
+        function updateHealthScoreChart() {
+            const ctx = document.getElementById('health-score-chart');
+            if (charts.health) charts.health.destroy();
+
+            const deviceNames = allAlarms.map(a => a.alarm_id);
+            const healthScores = allAlarms.map(a => {
+                const events = allEvents.filter(e => e.alarm_id === a.alarm_id);
+                return calculateDeviceHealth(a, events);
+            });
+
+            charts.health = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: deviceNames,
+                    datasets: [{
+                        label: '健康度评分',
+                        data: healthScores,
+                        backgroundColor: healthScores.map(score =>
+                            score >= 80 ? '#28a745' :
+                            score >= 60 ? '#ffc107' : '#dc3545'
+                        )
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // 计算系统健康度
+        function calculateSystemHealth(stats) {
+            let score = 100;
+
+            // 根据误报率扣分
+            const falseAlarmRate = (stats.false_alarms / stats.total_alarms) || 0;
+            score -= falseAlarmRate * 30;
+
+            // 根据响应时间扣分
+            if (stats.avg_response_time > 60) {
+                score -= 20;
+            } else if (stats.avg_response_time > 30) {
+                score -= 10;
+            }
+
+            // 根据低电量设备扣分（使用正确的字段名 battery）
+            const lowBatteryCount = allAlarms.filter(a => (a.battery || 100) < 20).length;
+            score -= lowBatteryCount * 5;
+
+            return Math.max(0, Math.round(score));
+        }
+
+        // 计算设备健康度
+        function calculateDeviceHealth(alarm, events) {
+            let score = 100;
+
+            // 电池电量（使用正确的字段名 battery）
+            const batteryLevel = alarm.battery || 100;
+            if (batteryLevel < 20) {
+                score -= 30;
+            } else if (batteryLevel < 50) {
+                score -= 15;
+            }
+
+            // 当前烟雾浓度（非报警状态下过高，使用正确的字段名 alarm_active）
+            if (!alarm.alarm_active && alarm.smoke_level > 20) {
+                score -= 20;
+            }
+
+            // 报警频率
+            const alarmCount = events.filter(e => e.event_type === 'ALARM_TRIGGERED').length;
+            if (alarmCount > 10) {
+                score -= 20;
+            } else if (alarmCount > 5) {
+                score -= 10;
+            }
+
+            return Math.max(0, Math.round(score));
+        }
+
+        // 切换标签页
+        function switchTab(tab) {
+            // 更新按钮
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // 更新内容
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+        }
+    </script>
+</body>
+</html>

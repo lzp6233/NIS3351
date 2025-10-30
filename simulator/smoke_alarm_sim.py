@@ -16,32 +16,46 @@ backend_dir = os.path.join(current_dir, '..', 'backend')
 sys.path.insert(0, backend_dir)
 
 # 从统一的配置文件导入
-from config import MQTT_BROKER, MQTT_PORT
+from config import MQTT_BROKER, MQTT_PORT, SMOKE_ALARM_INTERVAL
 
-# 烟雾报警器配置
+# 烟雾报警器配置（5个房间）
 SMOKE_ALARMS = [
     {
         "alarm_id": "smoke_living_room",
         "location": "living_room",
+        "name": "客厅",
         "sensitivity": "medium",  # 灵敏度：low/medium/high
         "alarm_threshold": 30.0   # 报警阈值（烟雾浓度）
     },
     {
-        "alarm_id": "smoke_bedroom",
-        "location": "bedroom",
+        "alarm_id": "smoke_bedroom1",
+        "location": "bedroom1",
+        "name": "主卧",
+        "sensitivity": "medium",
+        "alarm_threshold": 30.0
+    },
+    {
+        "alarm_id": "smoke_bedroom2",
+        "location": "bedroom2",
+        "name": "次卧",
         "sensitivity": "medium",
         "alarm_threshold": 30.0
     },
     {
         "alarm_id": "smoke_kitchen",
         "location": "kitchen",
+        "name": "厨房",
         "sensitivity": "high",    # 厨房使用高灵敏度
         "alarm_threshold": 25.0   # 厨房阈值较低
+    },
+    {
+        "alarm_id": "smoke_study",
+        "location": "study",
+        "name": "书房",
+        "sensitivity": "medium",
+        "alarm_threshold": 30.0
     }
 ]
-
-# 模拟间隔（秒）
-INTERVAL = 3
 
 # 每个设备的当前状态
 device_states = {}
@@ -259,7 +273,7 @@ def main():
             for alarm_config in SMOKE_ALARMS:
                 publish_state(client, alarm_config)
 
-            time.sleep(INTERVAL)
+            time.sleep(SMOKE_ALARM_INTERVAL)
 
     except KeyboardInterrupt:
         print("\n正在停止烟雾报警器模拟器...")

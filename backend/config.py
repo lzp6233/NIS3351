@@ -12,12 +12,22 @@ try:
     # 加载项目根目录的 .env 文件
     env_path = Path(__file__).parent.parent / '.env'
     load_dotenv(dotenv_path=env_path)
-    print(f"✓ 已加载配置文件: {env_path}")
+    try:
+        print(f"✓ 已加载配置文件: {env_path}")
+    except UnicodeEncodeError:
+        print(f"[OK] Config loaded: {env_path}")
 except ImportError:
-    print("⚠ 未安装 python-dotenv，使用默认配置")
-    print("  提示：运行 'pip install python-dotenv' 来启用 .env 文件支持")
+    try:
+        print("⚠ 未安装 python-dotenv，使用默认配置")
+        print("  提示：运行 'pip install python-dotenv' 来启用 .env 文件支持")
+    except UnicodeEncodeError:
+        print("[WARNING] python-dotenv not installed, using default config")
+        print("  Hint: Run 'pip install python-dotenv' to enable .env file support")
 except Exception as e:
-    print(f"⚠ 加载 .env 文件失败: {e}")
+    try:
+        print(f"⚠ 加载 .env 文件失败: {e}")
+    except UnicodeEncodeError:
+        print(f"[WARNING] Failed to load .env file: {e}")
 
 # ==================== 数据库配置 ====================
 DB_CONFIG = {
@@ -54,18 +64,48 @@ DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 # 温湿度传感器数据发送间隔（秒）
 INTERVAL = int(os.getenv("SENSOR_INTERVAL", "5"))
 
-# 要模拟的温湿度传感器设备列表
+# 烟雾报警器数据发送间隔（秒）
+SMOKE_ALARM_INTERVAL = int(os.getenv("SMOKE_ALARM_INTERVAL", "3"))
+
+# 照明系统配置
+# 房间亮度检测间隔（秒）
+LIGHTING_CHECK_INTERVAL = int(os.getenv("LIGHTING_CHECK_INTERVAL", "30"))
+# 自动开灯的房间亮度阈值（lux）
+LIGHTING_BRIGHTNESS_THRESHOLD = float(os.getenv("LIGHTING_BRIGHTNESS_THRESHOLD", "30"))
+
+# 前端静态服务端口
+FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", "8000"))
+
+# 要模拟的温湿度传感器设备列表（5个房间）
 SENSORS = [
     {
-        "device_id": "room1",
+        "device_id": "living_room",
         "location": "客厅",
-        "topic": "home/room1/temperature_humidity",
+        "topic": "home/living_room/temperature_humidity",
         "enabled": True
     },
     {
-        "device_id": "room2",
-        "location": "卧室",
-        "topic": "home/room2/temperature_humidity",
+        "device_id": "bedroom1",
+        "location": "主卧",
+        "topic": "home/bedroom1/temperature_humidity",
+        "enabled": True
+    },
+    {
+        "device_id": "bedroom2",
+        "location": "次卧",
+        "topic": "home/bedroom2/temperature_humidity",
+        "enabled": True
+    },
+    {
+        "device_id": "kitchen",
+        "location": "厨房",
+        "topic": "home/kitchen/temperature_humidity",
+        "enabled": True
+    },
+    {
+        "device_id": "study",
+        "location": "书房",
+        "topic": "home/study/temperature_humidity",
         "enabled": True
     },
 ]

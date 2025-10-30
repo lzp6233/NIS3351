@@ -305,6 +305,11 @@
             <a href="air-conditioner.html">空调控制</a>
             <a href="door-lock.html">门锁控制</a>
             <a href="smoke-alarm.html" style="font-weight: bold;">烟雾报警器</a>
+            <a href="alarm-dashboard.html">报警仪表板</a>
+            <a href="alarm-statistics.html">统计分析</a>
+            <a href="device-maintenance.html">设备维护</a>
+            <a href="automation-rules.html">自动化规则</a>
+            <a href="room-management.html">房间管理</a>
         </nav>
 
         <header>
@@ -321,6 +326,259 @@
         </div>
     </div>
 
+    <!-- Socket.IO 客户端库 -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
     <script src="smoke-alarm.js"></script>
+    <script>
+        // WebSocket实时更新支持
+        let socket;
+
+        // 初始化WebSocket连接
+        function initWebSocket() {
+            try {
+                socket = io('http://localhost:5000', {
+                    transports: ['websocket', 'polling'],
+                    reconnection: true,
+                    reconnectionDelay: 1000,
+                    reconnectionAttempts: 5
+                });
+
+                socket.on('connect', () => {
+                    console.log('✓ WebSocket 已连接');
+                    const indicator = document.createElement('div');
+                    indicator.style.cssText = 'position: fixed; top: 10px; right: 10px; background: #28a745; color: white; padding: 8px 15px; border-radius: 20px; font-size: 0.85em; z-index: 10000;';
+                    indicator.textContent = '● 实时连接';
+                    indicator.id = 'ws-indicator';
+                    document.body.appendChild(indicator);
+                });
+
+                socket.on('disconnect', () => {
+                    console.log('✗ WebSocket 已断开');
+                    const indicator = document.getElementById('ws-indicator');
+                    if (indicator) {
+                        indicator.style.background = '#dc3545';
+                        indicator.textContent = '● 连接断开';
+                    }
+                });
+
+                // 监听烟雾报警器状态更新
+                socket.on('smoke_alarm_state_update', (data) => {
+                    console.log('📨 收到烟雾报警器状态更新:', data);
+                    handleRealtimeUpdate(data);
+                });
+
+                // 监听烟雾报警器事件
+                socket.on('smoke_alarm_event', (data) => {
+                    console.log('🚨 收到烟雾报警器事件:', data);
+                    handleRealtimeEvent(data);
+                });
+
+                socket.on('connect_error', (error) => {
+                    console.error('WebSocket 连接错误:', error);
+                });
+            } catch (error) {
+                console.error('初始化WebSocket失败:', error);
+            }
+        }
+
+        // 处理实时状态更新
+        function handleRealtimeUpdate(data) {
+            // 如果smoke-alarm.js中有全局变量，则更新
+            if (typeof window.updateAlarmCard === 'function') {
+                window.updateAlarmCard(data);
+            } else {
+                // 直接更新DOM
+                updateAlarmCardDirect(data);
+            }
+
+            // 如果是报警触发，显示浮动通知
+            if (data.alarm_active) {
+                showFloatingAlert(data);
+            }
+        }
+
+        // 直接更新报警卡片
+        function updateAlarmCardDirect(data) {
+            const cards = document.querySelectorAll('.alarm-card');
+            cards.forEach(card => {
+                const header = card.querySelector('.alarm-location');
+                if (header && header.textContent.includes(data.alarm_id)) {
+                    // 更新烟雾浓度
+                    const smokeBar = card.querySelector('.smoke-level-fill');
+                    if (smokeBar) {
+                        smokeBar.style.width = `${Math.min(data.smoke_level, 100)}%`;
+                        smokeBar.textContent = `烟雾: ${data.smoke_level.toFixed(1)}%`;
+                    }
+
+                    // 更新电池
+                    const batteryValue = card.querySelector('.detail-value');
+                    if (batteryValue && batteryValue.closest('.detail-row').querySelector('.detail-label').textContent === '电池:') {
+                        batteryValue.textContent = `${data.battery}%`;
+                    }
+
+                    // 更新报警状态
+                    if (data.alarm_active) {
+                        card.classList.add('alarm-active');
+                        const status = card.querySelector('.alarm-status');
+                        if (status) {
+                            status.className = 'alarm-status status-danger';
+                            status.textContent = '报警中';
+                        }
+                    } else {
+                        card.classList.remove('alarm-active');
+                        const status = card.querySelector('.alarm-status');
+                        if (status && !data.test_mode) {
+                            status.className = 'alarm-status status-normal';
+                            status.textContent = '正常';
+                        }
+                    }
+                }
+            });
+        }
+
+        // 处理实时事件
+        function handleRealtimeEvent(data) {
+            // 添加到事件列表顶部
+            const eventsList = document.getElementById('events-list');
+            if (eventsList) {
+                const eventItem = document.createElement('div');
+                eventItem.className = `event-item ${data.event_type}`;
+                eventItem.innerHTML = `
+                    <div class="event-type">${getEventTypeText(data.event_type)}</div>
+                    <div class="event-detail">${data.alarm_id} - ${data.detail || ''}</div>
+                    <div class="event-time">刚刚</div>
+                `;
+                eventsList.insertBefore(eventItem, eventsList.firstChild);
+
+                // 限制显示数量
+                const items = eventsList.querySelectorAll('.event-item');
+                if (items.length > 20) {
+                    eventsList.removeChild(items[items.length - 1]);
+                }
+            }
+        }
+
+        // 显示浮动报警通知
+        function showFloatingAlert(data) {
+            const alert = document.createElement('div');
+            alert.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: linear-gradient(135deg, #dc3545, #c82333);
+                color: white;
+                padding: 20px 25px;
+                border-radius: 10px;
+                box-shadow: 0 10px 30px rgba(220, 53, 69, 0.5);
+                z-index: 10001;
+                animation: slideIn 0.3s ease-out;
+                max-width: 350px;
+            `;
+            alert.innerHTML = `
+                <div style="font-size: 1.2em; font-weight: bold; margin-bottom: 8px;">
+                    🚨 烟雾报警！
+                </div>
+                <div style="font-size: 0.95em;">
+                    <strong>${data.alarm_id}</strong><br>
+                    ${data.location || '位置未知'}<br>
+                    烟雾浓度: ${data.smoke_level}%
+                </div>
+            `;
+
+            // 添加关闭按钮
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '×';
+            closeBtn.style.cssText = `
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                background: none;
+                border: none;
+                color: white;
+                font-size: 1.5em;
+                cursor: pointer;
+            `;
+            closeBtn.onclick = () => alert.remove();
+            alert.appendChild(closeBtn);
+
+            document.body.appendChild(alert);
+
+            // 5秒后自动移除
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.style.animation = 'slideOut 0.3s ease-in';
+                    setTimeout(() => alert.remove(), 300);
+                }
+            }, 5000);
+
+            // 播放报警音
+            playAlertSound();
+        }
+
+        // 播放报警声音
+        function playAlertSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = 880;
+                oscillator.type = 'sine';
+
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (error) {
+                console.log('无法播放声音:', error);
+            }
+        }
+
+        // 获取事件类型文本
+        function getEventTypeText(type) {
+            const types = {
+                'ALARM_TRIGGERED': '🔥 报警触发',
+                'ALARM_CLEARED': '✅ 报警清除',
+                'LOW_BATTERY': '🔋 电池电量低',
+                'TEST_STARTED': '🔍 测试开始',
+                'TEST_STOPPED': '⏹ 测试停止',
+                'SENSITIVITY_CHANGED': '⚙️ 灵敏度调整'
+            };
+            return types[type] || type;
+        }
+
+        // 页面加载时初始化WebSocket
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initWebSocket);
+        } else {
+            initWebSocket();
+        }
+
+        // 页面卸载时断开连接
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+
+        // 添加动画样式
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(400px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
 </body>
 </html>

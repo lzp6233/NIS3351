@@ -1,14 +1,32 @@
 """
 MQTT 客户端模块
 订阅温湿度传感器主题，支持多个设备
+通过 WebSocket 实时推送数据到前端
 """
 
 import paho.mqtt.client as mqtt
 import json
-from database import insert_sensor_data, upsert_lock_state, insert_lock_event, upsert_lighting_state, insert_lighting_event
 from database import (insert_sensor_data, upsert_lock_state, insert_lock_event,
+                     upsert_lighting_state, insert_lighting_event,
                      upsert_smoke_alarm_state, insert_smoke_alarm_event)
 from config import MQTT_BROKER, MQTT_PORT, MQTT_TOPIC
+
+# WebSocket 实例（延迟导入避免循环依赖）
+_socketio = None
+
+def init_socketio(socketio):
+    """初始化 WebSocket 实例"""
+    global _socketio
+    _socketio = socketio
+    print("✓ WebSocket 实例已注入到 MQTT 客户端")
+
+def emit_to_clients(event, data):
+    """通过 WebSocket 推送数据到所有连接的客户端"""
+    if _socketio:
+        try:
+            _socketio.emit(event, data, namespace='/')
+        except Exception as e:
+            print(f"✗ WebSocket 推送失败: {e}")
 
 
 def parse_device_id(topic):
@@ -49,10 +67,7 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, msg):
-    """
-    消息回调：处理温湿度、门锁与灯具数据
-    消息回调：处理温湿度、门锁和烟雾报警器数据
-    """
+    """消息回调：处理温湿度、门锁、灯具和烟雾报警器数据"""
     try:
         topic = msg.topic
         payload = msg.payload.decode()
@@ -76,6 +91,15 @@ def on_message(client, userdata, msg):
                     ts=data.get('ts')
                 )
                 print(f"📨 [lock:{lock_id}] state locked={data.get('locked')} method={data.get('method')} actor={data.get('actor')}")
+                # WebSocket 实时推送
+                emit_to_clients('lock_state_update', {
+                    'lock_id': lock_id,
+                    'locked': data.get('locked'),
+                    'method': data.get('method'),
+                    'actor': data.get('actor'),
+                    'battery': data.get('battery'),
+                    'timestamp': data.get('ts')
+                })
             elif topic.endswith('/event'):
                 insert_lock_event(
                     lock_id=lock_id,
@@ -86,6 +110,15 @@ def on_message(client, userdata, msg):
                     ts=data.get('ts')
                 )
                 print(f"📨 [lock:{lock_id}] event {data.get('type')} by {data.get('actor')}")
+                # WebSocket 实时推送
+                emit_to_clients('lock_event', {
+                    'lock_id': lock_id,
+                    'event_type': data.get('type'),
+                    'method': data.get('method'),
+                    'actor': data.get('actor'),
+                    'detail': data.get('detail'),
+                    'timestamp': data.get('ts')
+                })
             return
         # ------------------------------------------------------------------------------------------------------    
         # 灯具主题处理
@@ -107,6 +140,15 @@ def on_message(client, userdata, msg):
                     color_temp=data.get('color_temp')
                 )
                 print(f"📨 [light:{light_id}] state power={data.get('power')} brightness={data.get('brightness')}% auto={data.get('auto_mode')}")
+                # WebSocket 实时推送
+                emit_to_clients('lighting_state_update', {
+                    'light_id': light_id,
+                    'power': data.get('power'),
+                    'brightness': data.get('brightness'),
+                    'auto_mode': data.get('auto_mode'),
+                    'room_brightness': data.get('room_brightness'),
+                    'color_temp': data.get('color_temp')
+                })
             elif topic.endswith('/event'):
                 insert_lighting_event(
                     light_id=light_id,
@@ -116,6 +158,14 @@ def on_message(client, userdata, msg):
                     detail=data.get('detail')
                 )
                 print(f"📨 [light:{light_id}] event {data.get('type')} - {data.get('detail')}")
+                # WebSocket 实时推送
+                emit_to_clients('lighting_event', {
+                    'light_id': light_id,
+                    'event_type': data.get('type'),
+                    'old_value': data.get('old_value'),
+                    'new_value': data.get('new_value'),
+                    'detail': data.get('detail')
+                })
             return
         # ------------------------------------------------------------------------------------------------------    
 
@@ -139,6 +189,16 @@ def on_message(client, userdata, msg):
                     sensitivity=data.get('sensitivity')
                 )
                 print(f"📨 [smoke:{alarm_id}] smoke_level={data.get('smoke_level')} alarm={data.get('alarm_active')} battery={data.get('battery')}%")
+                # WebSocket 实时推送（烟雾报警器状态更新 - 重要！）
+                emit_to_clients('smoke_alarm_state_update', {
+                    'alarm_id': alarm_id,
+                    'location': data.get('location'),
+                    'smoke_level': data.get('smoke_level'),
+                    'alarm_active': data.get('alarm_active'),
+                    'battery': data.get('battery'),
+                    'test_mode': data.get('test_mode'),
+                    'sensitivity': data.get('sensitivity')
+                })
             elif topic.endswith('/event'):
                 insert_smoke_alarm_event(
                     alarm_id=alarm_id,
@@ -147,6 +207,14 @@ def on_message(client, userdata, msg):
                     detail=json.dumps(data.get('detail')) if isinstance(data.get('detail'), (dict, list)) else data.get('detail')
                 )
                 print(f"📨 [smoke:{alarm_id}] event {data.get('type')}")
+                # WebSocket 实时推送（烟雾报警器事件 - 紧急通知！）
+                emit_to_clients('smoke_alarm_event', {
+                    'alarm_id': alarm_id,
+                    'event_type': data.get('type'),
+                    'smoke_level': data.get('smoke_level'),
+                    'detail': data.get('detail'),
+                    'priority': 'high' if data.get('type') == 'alarm_triggered' else 'normal'
+                })
             return
 
         # 温湿度主题处理
@@ -157,6 +225,13 @@ def on_message(client, userdata, msg):
             data = eval(payload)
         insert_sensor_data(data, device_id)
         print(f"📨 [{device_id}] 温度: {data['temperature']}°C, 湿度: {data['humidity']}%")
+        # WebSocket 实时推送
+        emit_to_clients('sensor_data_update', {
+            'device_id': device_id,
+            'temperature': data.get('temperature'),
+            'humidity': data.get('humidity'),
+            'timestamp': data.get('timestamp')
+        })
 
     except Exception as e:
         print(f"✗ 处理消息时出错: {e}")
@@ -229,10 +304,9 @@ if __name__ == "__main__":
     print("="*50)
     print("MQTT 客户端运行中...")
     print(f"订阅主题: {MQTT_TOPIC}")
-    # ------------------------------------------------------------------------------------------------------
     print("订阅主题: home/lock/+/state, home/lock/+/event")
     print("订阅主题: home/lighting/+/state, home/lighting/+/event")
-    # ------------------------------------------------------------------------------------------------------
+    print("订阅主题: home/smoke_alarm/+/state, home/smoke_alarm/+/event")
     print("="*50)
     
     try:

@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备维护管理 - NIS3351智慧家居</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        nav {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            font-weight: 500;
+            transition: opacity 0.3s;
+        }
+
+        nav a:hover {
+            opacity: 0.8;
+        }
+
+        .content-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #333;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+
+        .tab:hover {
+            color: #007bff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .maintenance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .maintenance-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 5px solid #007bff;
+            transition: transform 0.3s;
+        }
+
+        .maintenance-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .maintenance-card.battery_replacement {
+            border-left-color: #dc3545;
+        }
+
+        .maintenance-card.cleaning {
+            border-left-color: #28a745;
+        }
+
+        .maintenance-card.test {
+            border-left-color: #ffc107;
+        }
+
+        .maintenance-card.inspection {
+            border-left-color: #6c757d;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .device-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .maintenance-type {
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: bold;
+            background: #007bff;
+            color: white;
+        }
+
+        .maintenance-type.battery_replacement {
+            background: #dc3545;
+        }
+
+        .maintenance-type.cleaning {
+            background: #28a745;
+        }
+
+        .maintenance-type.test {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .maintenance-type.inspection {
+            background: #6c757d;
+        }
+
+        .card-detail {
+            margin: 8px 0;
+            color: #666;
+        }
+
+        .card-detail strong {
+            color: #333;
+        }
+
+        .due-soon-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .due-card {
+            background: linear-gradient(135deg, #ffc107 0%, #ff6b6b 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .due-card::before {
+            content: '⚠️';
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            font-size: 5em;
+            opacity: 0.2;
+        }
+
+        .due-card-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .due-card-days {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .due-card-label {
+            opacity: 0.9;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .modal-title {
+            font-size: 1.5em;
+            color: #333;
+        }
+
+        .close {
+            font-size: 2em;
+            font-weight: bold;
+            color: #999;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close:hover {
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .calendar-view {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #ddd;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-bottom: 25px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -34px;
+            top: 5px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #007bff;
+            border: 2px solid white;
+        }
+
+        .timeline-date {
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+
+        .timeline-content {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-bar select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 0.95em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="index.html">首页</a>
+            <a href="smoke-alarm.html">烟雾报警器</a>
+            <a href="alarm-dashboard.html">报警仪表板</a>
+            <a href="alarm-statistics.html">统计分析</a>
+            <a href="device-maintenance.html" style="font-weight: bold;">设备维护</a>
+            <a href="automation-rules.html">自动化规则</a>
+            <a href="room-management.html">房间管理</a>
+        </nav>
+
+        <header>
+            <h1>🔧 设备维护管理</h1>
+            <p>跟踪设备维护记录，确保设备正常运行</p>
+        </header>
+
+        <div class="content-section">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-maintenance">0</div>
+                    <div class="stat-label">总维护记录</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="due-count">0</div>
+                    <div class="stat-label">待维护设备</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="this-month">0</div>
+                    <div class="stat-label">本月维护</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="total-cost">¥0</div>
+                    <div class="stat-label">总维护成本</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-section">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('due')">待维护设备</button>
+                <button class="tab" onclick="switchTab('history')">维护历史</button>
+                <button class="tab" onclick="switchTab('timeline')">时间线</button>
+            </div>
+
+            <!-- 待维护设备标签页 -->
+            <div id="tab-due" class="tab-content active">
+                <div class="section-header">
+                    <h2 class="section-title">待维护设备</h2>
+                    <button class="btn btn-warning" onclick="loadDueDevices()">🔄 刷新</button>
+                </div>
+
+                <div id="loading-due" class="loading">正在加载...</div>
+
+                <div id="due-grid" class="due-soon-grid" style="display: none;"></div>
+
+                <div id="empty-due" class="empty-state" style="display: none;">
+                    <div class="empty-state-icon">✅</div>
+                    <h3>所有设备状态良好</h3>
+                    <p>暂无需要维护的设备</p>
+                </div>
+            </div>
+
+            <!-- 维护历史标签页 -->
+            <div id="tab-history" class="tab-content">
+                <div class="section-header">
+                    <h2 class="section-title">维护历史</h2>
+                    <button class="btn btn-primary" onclick="openAddModal()">
+                        + 添加维护记录
+                    </button>
+                </div>
+
+                <div class="filter-bar">
+                    <label>筛选:</label>
+                    <select id="filter-device" onchange="loadMaintenanceRecords()">
+                        <option value="">全部设备</option>
+                    </select>
+                    <select id="filter-type" onchange="loadMaintenanceRecords()">
+                        <option value="">全部类型</option>
+                        <option value="battery_replacement">电池更换</option>
+                        <option value="cleaning">清洁</option>
+                        <option value="test">测试</option>
+                        <option value="inspection">检查</option>
+                    </select>
+                </div>
+
+                <div id="loading-history" class="loading">正在加载...</div>
+
+                <div id="maintenance-grid" class="maintenance-grid" style="display: none;"></div>
+
+                <div id="empty-history" class="empty-state" style="display: none;">
+                    <div class="empty-state-icon">📋</div>
+                    <h3>暂无维护记录</h3>
+                    <p>点击"添加维护记录"按钮开始记录</p>
+                </div>
+            </div>
+
+            <!-- 时间线标签页 -->
+            <div id="tab-timeline" class="tab-content">
+                <div class="section-header">
+                    <h2 class="section-title">维护时间线</h2>
+                </div>
+
+                <div id="loading-timeline" class="loading">正在加载...</div>
+
+                <div id="timeline-container" class="timeline" style="display: none;"></div>
+
+                <div id="empty-timeline" class="empty-state" style="display: none;">
+                    <div class="empty-state-icon">📅</div>
+                    <h3>暂无维护记录</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加维护记录模态框 -->
+    <div id="maintenance-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">添加维护记录</h2>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+
+            <form id="maintenance-form" onsubmit="submitMaintenance(event)">
+                <div class="form-group">
+                    <label for="alarm-id">设备 *</label>
+                    <select id="alarm-id" required>
+                        <option value="">请选择设备</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="maintenance-type">维护类型 *</label>
+                    <select id="maintenance-type" required>
+                        <option value="battery_replacement">电池更换</option>
+                        <option value="cleaning">清洁</option>
+                        <option value="test">测试</option>
+                        <option value="inspection">检查</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="performed-by">维护人员 *</label>
+                    <input type="text" id="performed-by" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="maintenance-date">维护日期 *</label>
+                    <input type="datetime-local" id="maintenance-date" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="next-maintenance-date">下次维护日期</label>
+                    <input type="datetime-local" id="next-maintenance-date">
+                </div>
+
+                <div class="form-group">
+                    <label for="cost">费用 (¥)</label>
+                    <input type="number" id="cost" step="0.01" min="0" placeholder="0.00">
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">备注</label>
+                    <textarea id="notes" placeholder="记录维护详情..."></textarea>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn btn-success">保存记录</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';
+        let allMaintenanceRecords = [];
+        let allAlarms = [];
+        let currentTab = 'due';
+
+        // 页面加载时初始化
+        window.onload = async function() {
+            await loadAlarms();
+            await loadDueDevices();
+            await loadMaintenanceRecords();
+            setDefaultDateTime();
+        };
+
+        // 加载烟雾报警器列表
+        async function loadAlarms() {
+            try {
+                const response = await fetch(`${API_BASE}/smoke_alarms`);
+                allAlarms = await response.json();
+
+                const selects = ['alarm-id', 'filter-device'];
+                selects.forEach(selectId => {
+                    const select = document.getElementById(selectId);
+                    allAlarms.forEach(alarm => {
+                        const option = document.createElement('option');
+                        option.value = alarm.alarm_id;
+                        option.textContent = `${alarm.alarm_id} (${alarm.location || '未知位置'})`;
+                        select.appendChild(option);
+                    });
+                });
+            } catch (error) {
+                console.error('加载报警器失败:', error);
+            }
+        }
+
+        // 加载待维护设备
+        async function loadDueDevices() {
+            try {
+                document.getElementById('loading-due').style.display = 'block';
+                document.getElementById('due-grid').style.display = 'none';
+                document.getElementById('empty-due').style.display = 'none';
+
+                const response = await fetch(`${API_BASE}/smoke_alarms/maintenance/due`);
+                const data = await response.json();
+
+                if (data.success && data.devices.length > 0) {
+                    displayDueDevices(data.devices);
+                    document.getElementById('due-count').textContent = data.devices.length;
+                } else {
+                    document.getElementById('empty-due').style.display = 'block';
+                    document.getElementById('due-count').textContent = 0;
+                }
+            } catch (error) {
+                console.error('加载待维护设备失败:', error);
+            } finally {
+                document.getElementById('loading-due').style.display = 'none';
+            }
+        }
+
+        // 显示待维护设备
+        function displayDueDevices(devices) {
+            const grid = document.getElementById('due-grid');
+            grid.innerHTML = '';
+            grid.style.display = 'grid';
+
+            devices.forEach(device => {
+                const daysOverdue = device.days_overdue || 0;
+                const card = document.createElement('div');
+                card.className = 'due-card';
+                card.innerHTML = `
+                    <div class="due-card-title">${device.alarm_id}</div>
+                    <div class="due-card-days">${Math.abs(daysOverdue)} 天</div>
+                    <div class="due-card-label">${daysOverdue > 0 ? '已逾期' : '即将到期'}</div>
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-sm btn-primary" onclick="quickMaintenance('${device.alarm_id}')">
+                            快速维护
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // 加载维护记录
+        async function loadMaintenanceRecords() {
+            try {
+                document.getElementById('loading-history').style.display = 'block';
+                document.getElementById('maintenance-grid').style.display = 'none';
+                document.getElementById('empty-history').style.display = 'none';
+
+                const response = await fetch(`${API_BASE}/smoke_alarms/maintenance`);
+                const data = await response.json();
+
+                if (data.success) {
+                    allMaintenanceRecords = data.records || [];
+
+                    // 应用筛选
+                    const filterDevice = document.getElementById('filter-device').value;
+                    const filterType = document.getElementById('filter-type').value;
+
+                    let filtered = allMaintenanceRecords;
+
+                    if (filterDevice) {
+                        filtered = filtered.filter(r => r.alarm_id === filterDevice);
+                    }
+
+                    if (filterType) {
+                        filtered = filtered.filter(r => r.maintenance_type === filterType);
+                    }
+
+                    displayMaintenanceRecords(filtered);
+                    updateStats();
+                    updateTimeline(allMaintenanceRecords);
+                }
+            } catch (error) {
+                console.error('加载维护记录失败:', error);
+            } finally {
+                document.getElementById('loading-history').style.display = 'none';
+                document.getElementById('loading-timeline').style.display = 'none';
+            }
+        }
+
+        // 显示维护记录
+        function displayMaintenanceRecords(records) {
+            const grid = document.getElementById('maintenance-grid');
+            grid.innerHTML = '';
+
+            if (records.length === 0) {
+                document.getElementById('empty-history').style.display = 'block';
+                return;
+            }
+
+            grid.style.display = 'grid';
+
+            records.forEach(record => {
+                const card = document.createElement('div');
+                card.className = `maintenance-card ${record.maintenance_type}`;
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="device-name">${record.alarm_id}</div>
+                        <div class="maintenance-type ${record.maintenance_type}">
+                            ${getMaintenanceTypeText(record.maintenance_type)}
+                        </div>
+                    </div>
+                    <div class="card-detail">
+                        <strong>维护人员:</strong> ${record.performed_by}
+                    </div>
+                    <div class="card-detail">
+                        <strong>维护日期:</strong> ${formatDateTime(record.maintenance_date)}
+                    </div>
+                    ${record.next_maintenance_date ? `
+                        <div class="card-detail">
+                            <strong>下次维护:</strong> ${formatDateTime(record.next_maintenance_date)}
+                        </div>
+                    ` : ''}
+                    ${record.cost ? `
+                        <div class="card-detail">
+                            <strong>费用:</strong> ¥${parseFloat(record.cost).toFixed(2)}
+                        </div>
+                    ` : ''}
+                    ${record.notes ? `
+                        <div class="card-detail" style="margin-top: 10px;">
+                            <strong>备注:</strong> ${record.notes}
+                        </div>
+                    ` : ''}
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // 更新时间线
+        function updateTimeline(records) {
+            const container = document.getElementById('timeline-container');
+            container.innerHTML = '';
+
+            if (records.length === 0) {
+                document.getElementById('empty-timeline').style.display = 'block';
+                return;
+            }
+
+            container.style.display = 'block';
+
+            // 按日期排序（最新的在前）
+            const sorted = [...records].sort((a, b) =>
+                new Date(b.maintenance_date) - new Date(a.maintenance_date)
+            );
+
+            sorted.forEach(record => {
+                const item = document.createElement('div');
+                item.className = 'timeline-item';
+                item.innerHTML = `
+                    <div class="timeline-date">${formatDate(record.maintenance_date)}</div>
+                    <div class="timeline-content">
+                        <strong>${record.alarm_id}</strong> - ${getMaintenanceTypeText(record.maintenance_type)}
+                        <br>
+                        <small>维护人员: ${record.performed_by}</small>
+                        ${record.notes ? `<br><small>${record.notes}</small>` : ''}
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // 更新统计
+        function updateStats() {
+            const total = allMaintenanceRecords.length;
+            document.getElementById('total-maintenance').textContent = total;
+
+            // 计算本月维护次数
+            const now = new Date();
+            const thisMonth = allMaintenanceRecords.filter(r => {
+                const date = new Date(r.maintenance_date);
+                return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+            }).length;
+            document.getElementById('this-month').textContent = thisMonth;
+
+            // 计算总成本
+            const totalCost = allMaintenanceRecords.reduce((sum, r) =>
+                sum + (parseFloat(r.cost) || 0), 0
+            );
+            document.getElementById('total-cost').textContent = `¥${totalCost.toFixed(2)}`;
+        }
+
+        // 切换标签页
+        function switchTab(tab) {
+            currentTab = tab;
+
+            // 更新标签按钮
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // 更新内容
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+
+            // 加载相应数据
+            if (tab === 'due') {
+                loadDueDevices();
+            } else if (tab === 'timeline' && allMaintenanceRecords.length > 0) {
+                updateTimeline(allMaintenanceRecords);
+            }
+        }
+
+        // 打开添加模态框
+        function openAddModal() {
+            document.getElementById('maintenance-form').reset();
+            setDefaultDateTime();
+            document.getElementById('maintenance-modal').style.display = 'block';
+        }
+
+        // 快速维护
+        function quickMaintenance(alarmId) {
+            document.getElementById('alarm-id').value = alarmId;
+            openAddModal();
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('maintenance-modal').style.display = 'none';
+        }
+
+        // 提交维护记录
+        async function submitMaintenance(event) {
+            event.preventDefault();
+
+            const formData = {
+                alarm_id: document.getElementById('alarm-id').value,
+                maintenance_type: document.getElementById('maintenance-type').value,
+                performed_by: document.getElementById('performed-by').value,
+                maintenance_date: document.getElementById('maintenance-date').value,
+                next_maintenance_date: document.getElementById('next-maintenance-date').value || null,
+                cost: parseFloat(document.getElementById('cost').value) || null,
+                notes: document.getElementById('notes').value || null
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/smoke_alarms/${formData.alarm_id}/maintenance`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('维护记录添加成功');
+                    closeModal();
+                    await loadMaintenanceRecords();
+                    await loadDueDevices();
+                } else {
+                    alert('操作失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('提交维护记录失败:', error);
+                alert('提交失败: ' + error.message);
+            }
+        }
+
+        // 设置默认日期时间为当前时间
+        function setDefaultDateTime() {
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            const localISOTime = new Date(now - offset).toISOString().slice(0, 16);
+            document.getElementById('maintenance-date').value = localISOTime;
+        }
+
+        // 获取维护类型文本
+        function getMaintenanceTypeText(type) {
+            const types = {
+                'battery_replacement': '🔋 电池更换',
+                'cleaning': '🧹 清洁',
+                'test': '🔍 测试',
+                'inspection': '📋 检查'
+            };
+            return types[type] || type;
+        }
+
+        // 格式化日期时间
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleString('zh-CN');
+        }
+
+        // 格式化日期
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('zh-CN');
+        }
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('maintenance-modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        };
+    </script>
+</body>
+</html>

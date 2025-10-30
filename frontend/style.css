@@ -648,6 +648,7 @@ body {
     background: #ddd;
     outline: none;
     -webkit-appearance: none;
+    appearance: none;
 }
 
 .light-controls input[type="range"]::-webkit-slider-thumb {

@@ -5,7 +5,15 @@
 
 import sqlite3
 from config import DB_CONFIG, DB_TYPE, DB_PATH
-import py_opengauss
+
+# 条件导入 py_opengauss（仅在需要时导入）
+if DB_TYPE == 'opengauss':
+    try:
+        import py_opengauss
+    except ImportError:
+        print("[ERROR] py_opengauss not installed. Please run: pip install py-opengauss")
+        print("[INFO] Falling back to SQLite mode")
+        DB_TYPE = 'sqlite'
 
 
 def get_connection():
@@ -22,7 +30,7 @@ def get_connection():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS temperature_humidity_data (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                device_id VARCHAR(50) DEFAULT 'room1',
+                device_id VARCHAR(50) NOT NULL,
                 temperature FLOAT NOT NULL,
                 humidity FLOAT NOT NULL,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -121,17 +129,46 @@ def get_connection():
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # 烟雾报警器状态表
+        # 烟雾报警器状态表（增强版）
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS rooms (
+                room_id VARCHAR(50) PRIMARY KEY,
+                room_name VARCHAR(100) NOT NULL,
+                floor INTEGER DEFAULT 1,
+                area FLOAT,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # 插入初始房间数据（如果不存在）
+        cur.execute("SELECT COUNT(*) FROM rooms")
+        if cur.fetchone()[0] == 0:
+            cur.executemany("""
+                INSERT INTO rooms (room_id, room_name, floor, area, description)
+                VALUES (?, ?, ?, ?, ?)
+            """, [
+                ('living_room', '客厅', 1, 35.5, '主要活动区域'),
+                ('bedroom1', '主卧', 1, 20.0, '主卧室'),
+                ('bedroom2', '次卧', 1, 15.0, '次卧室'),
+                ('kitchen', '厨房', 1, 12.0, '烹饪区域'),
+                ('study', '书房', 1, 18.0, '学习工作空间')
+            ])
         cur.execute("""
             CREATE TABLE IF NOT EXISTS smoke_alarm_state (
                 alarm_id VARCHAR(50) PRIMARY KEY,
+                room_id VARCHAR(50),
                 location VARCHAR(50) NOT NULL,
                 smoke_level FLOAT DEFAULT 0.0,
                 alarm_active BOOLEAN DEFAULT 0,
                 battery INTEGER DEFAULT 100,
                 test_mode BOOLEAN DEFAULT 0,
                 sensitivity VARCHAR(20) DEFAULT 'medium',
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                installation_date TIMESTAMP,
+                last_maintenance_date TIMESTAMP,
+                device_model VARCHAR(100) DEFAULT 'SA-2024',
+                firmware_version VARCHAR(50) DEFAULT '1.0.0',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (room_id) REFERENCES rooms(room_id)
             )
         """)
         # 烟雾报警器事件表
@@ -145,11 +182,108 @@ def get_connection():
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # 自动化响应规则表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS smoke_alarm_response_rules (
+                rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_name VARCHAR(100) NOT NULL,
+                alarm_id VARCHAR(50),
+                room_id VARCHAR(50),
+                trigger_condition VARCHAR(50),
+                condition_value FLOAT,
+                action_type VARCHAR(50),
+                action_target VARCHAR(100),
+                action_params TEXT,
+                enabled BOOLEAN DEFAULT 1,
+                priority INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (alarm_id) REFERENCES smoke_alarm_state(alarm_id),
+                FOREIGN KEY (room_id) REFERENCES rooms(room_id)
+            )
+        """)
+        # 用户通知配置表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_notification_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id VARCHAR(50) NOT NULL UNIQUE,
+                username VARCHAR(100),
+                email VARCHAR(255),
+                phone VARCHAR(20),
+                notify_on_alarm BOOLEAN DEFAULT 1,
+                notify_on_low_battery BOOLEAN DEFAULT 1,
+                notify_on_maintenance_due BOOLEAN DEFAULT 1,
+                notification_channels TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # 通知历史表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notification_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id VARCHAR(50) NOT NULL,
+                alarm_id VARCHAR(50),
+                notification_type VARCHAR(50),
+                channel VARCHAR(20),
+                subject VARCHAR(255),
+                message TEXT,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status VARCHAR(20) DEFAULT 'sent',
+                error_message TEXT
+            )
+        """)
+        # 设备维护记录表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS device_maintenance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alarm_id VARCHAR(50),
+                maintenance_type VARCHAR(50),
+                performed_by VARCHAR(100),
+                maintenance_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                next_maintenance_date TIMESTAMP,
+                notes TEXT,
+                cost DECIMAL(10, 2),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (alarm_id) REFERENCES smoke_alarm_state(alarm_id)
+            )
+        """)
+        # 报警确认记录表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS alarm_acknowledgments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alarm_id VARCHAR(50) NOT NULL,
+                event_id INTEGER,
+                acknowledged_by VARCHAR(100) NOT NULL,
+                acknowledged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                response_time INTEGER,
+                action_taken TEXT,
+                resolution VARCHAR(50),
+                notes TEXT,
+                FOREIGN KEY (event_id) REFERENCES smoke_alarm_events(id)
+            )
+        """)
+        # 报警统计表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS alarm_statistics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alarm_id VARCHAR(50),
+                room_id VARCHAR(50),
+                stat_date DATE,
+                total_alarms INTEGER DEFAULT 0,
+                false_alarms INTEGER DEFAULT 0,
+                real_alarms INTEGER DEFAULT 0,
+                avg_response_time INTEGER,
+                max_smoke_level FLOAT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(alarm_id, stat_date)
+            )
+        """)
         conn.commit()
         return conn
 
-    # 构建连接字符串: opengauss://user:password@host:port/database
-    conn_string = f"opengauss://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}"
+    # 构建连接字符串: opengauss://user:password@host:port/database?client_encoding=UTF8
+    conn_string = f"opengauss://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}?client_encoding=UTF8"
     conn = py_opengauss.open(conn_string)
     return conn
 
@@ -228,31 +362,41 @@ def get_recent_data(device_id=None, limit=100):
 
 
 def get_devices():
-    """获取所有设备列表及其数据数量"""
+    """获取所有设备列表及其数据数量，关联房间表获取中文名称"""
     conn = get_connection()
     try:
         result = []
         if DB_TYPE == 'sqlite':
             cur = conn.cursor()
-            cur.execute(
-                "SELECT device_id, COUNT(*) as count FROM temperature_humidity_data GROUP BY device_id"
-            )
+            cur.execute("""
+                SELECT t.device_id, COUNT(*) as count, COALESCE(r.room_name, t.device_id) as room_name
+                FROM temperature_humidity_data t
+                LEFT JOIN rooms r ON t.device_id = r.room_id
+                GROUP BY t.device_id, r.room_name
+                ORDER BY t.device_id
+            """)
             rows = cur.fetchall()
             for row in rows:
                 result.append({
                     "device_id": row[0],
-                    "data_count": row[1]
+                    "data_count": row[1],
+                    "room_name": row[2]
                 })
             return result
 
-        stmt = conn.prepare(
-            "SELECT device_id, COUNT(*) as count FROM temperature_humidity_data GROUP BY device_id"
-        )
+        stmt = conn.prepare("""
+            SELECT t.device_id, COUNT(*) as count, COALESCE(r.room_name, t.device_id) as room_name
+            FROM temperature_humidity_data t
+            LEFT JOIN rooms r ON t.device_id = r.room_id
+            GROUP BY t.device_id, r.room_name
+            ORDER BY t.device_id
+        """)
         rows = stmt()
         for row in rows:
             result.append({
                 "device_id": row[0],
-                "data_count": row[1]
+                "data_count": row[1],
+                "room_name": row[2]
             })
         return result
     finally:
@@ -500,27 +644,32 @@ def get_lock_events(lock_id, limit=50):
 
 # ==================== 用户认证功能 ====================
 
-def create_lock_user(username, password, face_image_path=None, fingerprint_data=None):
+def create_lock_user(username, password, pincode=None, face_image_path=None, fingerprint_data=None):
     """创建门锁用户"""
     import hashlib
     password_hash = hashlib.sha256(password.encode()).hexdigest()
-    
+
+    # 如果没有提供 pincode，使用全局 PINCODE
+    if pincode is None:
+        from pincode_config import get_pincode
+        pincode = get_pincode()
+
     conn = get_connection()
     try:
         if DB_TYPE == 'sqlite':
             cur = conn.cursor()
             cur.execute(
-                """INSERT INTO lock_users (username, password_hash, face_image_path, fingerprint_data)
-                   VALUES (?, ?, ?, ?)""",
-                (username, password_hash, face_image_path, fingerprint_data)
+                """INSERT INTO lock_users (username, password_hash, pincode, face_image_path, fingerprint_data)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (username, password_hash, pincode, face_image_path, fingerprint_data)
             )
             conn.commit()
         else:
             stmt = conn.prepare("""
-                INSERT INTO lock_users (username, password_hash, face_image_path, fingerprint_data, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, NOW(), NOW())
+                INSERT INTO lock_users (username, password_hash, pincode, face_image_path, fingerprint_data, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
             """)
-            stmt(username, password_hash, face_image_path, fingerprint_data)
+            stmt(username, password_hash, pincode, face_image_path, fingerprint_data)
     finally:
         conn.close()
 

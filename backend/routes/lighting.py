@@ -9,6 +9,7 @@ from database import (
     upsert_lighting_state, get_lighting_state, get_all_lights,
     insert_lighting_event, get_lighting_events
 )
+import mqtt_client
 
 # 创建蓝图
 lighting_bp = Blueprint('lighting', __name__)
@@ -110,7 +111,24 @@ def control_lighting(light_id):
             new_value=str(color_temp),
             detail=f"Manual control: Color temperature set to {color_temp}K"
         )
-    
+
+    # 获取更新后的状态
+    updated_state = get_lighting_state(light_id)
+
+    # 发布 MQTT 消息以触发 WebSocket 实时推送
+    if updated_state:
+        mqtt_client.client.publish(
+            f"home/lighting/{light_id}/state",
+            mqtt_client.json.dumps({
+                'light_id': light_id,
+                'power': updated_state.get('power'),
+                'brightness': updated_state.get('brightness'),
+                'auto_mode': updated_state.get('auto_mode'),
+                'room_brightness': updated_state.get('room_brightness'),
+                'color_temp': updated_state.get('color_temp')
+            })
+        )
+
     return jsonify({
         "status": "success",
         "message": "灯具控制成功",
@@ -154,29 +172,29 @@ def auto_adjust_lighting(light_id):
             "room_brightness": room_brightness
         })
 
-    # 目标照度映射：卧室=300lux（room1/room2），客厅=living=600lux，厨房=kitchen=500lux
-    # 更稳健的房间类型识别：优先用 light_id 模式匹配，其次回退数据库 device_id
+    # 目标照度映射：统一房间命名
     def infer_device_id(light_id_value: str, db_device_id: str | None) -> str:
         lid = (light_id_value or '').lower()
         if 'living' in lid:
             return 'living'
         if 'kitchen' in lid:
             return 'kitchen'
-        if 'room2' in lid:
-            return 'room2'
-        if 'room1' in lid:
-            return 'room1'
+        if 'bedroom2' in lid:
+            return 'bedroom2'
+        if 'bedroom1' in lid:
+            return 'bedroom1'
         # 回退 DB
-        if db_device_id in {'living','kitchen','room1','room2'}:
+        if db_device_id in {'living','kitchen','bedroom1','bedroom2'}:
             return db_device_id
-        return 'room1'
+        return 'living'
 
     device_id = infer_device_id(light_id, current_state.get('device_id'))
     target_map = {
-        'room1': 300,
-        'room2': 300,
         'living': 600,
+        'bedroom1': 300,
+        'bedroom2': 300,
         'kitchen': 500,
+        'study': 400,
     }
     target_lux = target_map.get(device_id, 400)
 
@@ -254,6 +272,23 @@ def auto_adjust_lighting(light_id):
             detail=f"Auto {action}: room {room_brightness} lux, target {target_lux}±{margin}"
         )
 
+    # 获取更新后的状态
+    updated_state = get_lighting_state(light_id)
+
+    # 发布 MQTT 消息以触发 WebSocket 实时推送
+    if updated_state:
+        mqtt_client.client.publish(
+            f"home/lighting/{light_id}/state",
+            mqtt_client.json.dumps({
+                'light_id': light_id,
+                'power': updated_state.get('power'),
+                'brightness': updated_state.get('brightness'),
+                'auto_mode': updated_state.get('auto_mode'),
+                'room_brightness': updated_state.get('room_brightness'),
+                'color_temp': updated_state.get('color_temp')
+            })
+        )
+
     return jsonify({
         "status": "success",
         "message": f"已根据房间亮度{action}亮度至 {new_brightness}%（目标 {target_lux} lux, 滞回±{int(margin)}, 关灯阈+{int(off_margin)}）",
@@ -272,22 +307,22 @@ def batch_control_lighting():
     """批量控制多个灯具"""
     body = request.get_json(force=True) or {}
     lights = body.get('lights', [])  # [{"light_id": "light_room1", "power": true, "brightness": 80}, ...]
-    
+
     results = []
     for light_config in lights:
         light_id = light_config.get('light_id')
         if not light_id:
             continue
-            
+
         # 获取当前状态
         current_state = get_lighting_state(light_id)
-        
+
         # 提取控制参数
         power = light_config.get('power')
         brightness = light_config.get('brightness')
         auto_mode = light_config.get('auto_mode')
         color_temp = light_config.get('color_temp')
-        
+
         # 更新灯具状态
         upsert_lighting_state(
             light_id=light_id,
@@ -296,12 +331,29 @@ def batch_control_lighting():
             auto_mode=auto_mode,
             color_temp=color_temp
         )
-        
+
+        # 获取更新后的状态
+        updated_state = get_lighting_state(light_id)
+
+        # 发布 MQTT 消息以触发 WebSocket 实时推送
+        if updated_state:
+            mqtt_client.client.publish(
+                f"home/lighting/{light_id}/state",
+                mqtt_client.json.dumps({
+                    'light_id': light_id,
+                    'power': updated_state.get('power'),
+                    'brightness': updated_state.get('brightness'),
+                    'auto_mode': updated_state.get('auto_mode'),
+                    'room_brightness': updated_state.get('room_brightness'),
+                    'color_temp': updated_state.get('color_temp')
+                })
+            )
+
         results.append({
             "light_id": light_id,
             "status": "success"
         })
-    
+
     return jsonify({
         "status": "success",
         "message": f"批量控制完成，共处理 {len(results)} 个灯具",

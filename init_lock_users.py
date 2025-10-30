@@ -15,7 +15,8 @@ current_dir = os.path.dirname(__file__)
 backend_dir = os.path.join(current_dir, 'backend')
 sys.path.insert(0, backend_dir)
 
-from backend.database import create_lock_user, get_connection, DB_TYPE
+from database import create_lock_user, get_connection, DB_TYPE
+from pincode_config import get_pincode
 
 def generate_fingerprint_data():
     """生成模拟指纹数据（64位随机字符串）"""
@@ -40,14 +41,30 @@ def create_sample_face_image(username):
 
 def main():
     print("🔐 初始化门锁用户...")
-    
+
+    # 获取全局 PINCODE
+    global_pincode = get_pincode()
+    print(f"✓ 使用全局 PIN 码: {global_pincode}")
+
     # 默认用户配置
     users = [
         {
-            'username': 'lsqxx2027',
-            'password': 'lsqxx2027',
-            'pincode': '041117',
-            'description': 'lsq'
+            'username': 'zhong',
+            'password': 'zwb@123890',
+            'pincode': global_pincode,
+            'description': '主用户'
+        },
+        {
+            'username': 'admin',
+            'password': 'admin123',
+            'pincode': global_pincode,
+            'description': '管理员'
+        },
+        {
+            'username': 'guest',
+            'password': 'guest123',
+            'pincode': global_pincode,
+            'description': '访客'
         }
     ]
     

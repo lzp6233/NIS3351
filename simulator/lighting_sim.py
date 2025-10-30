@@ -7,19 +7,26 @@ import paho.mqtt.client as mqtt
 import json
 import time
 import random
+import sys
+import os
 import threading
 from datetime import datetime
 
-# MQTT 配置
-MQTT_BROKER = "localhost"
-MQTT_PORT = 1883
+# 添加 backend 路径
+current_dir = os.path.dirname(__file__)
+backend_dir = os.path.join(current_dir, '..', 'backend')
+sys.path.insert(0, backend_dir)
 
-# 灯具配置
+# 从统一的配置文件导入
+from config import MQTT_BROKER, MQTT_PORT, LIGHTING_CHECK_INTERVAL, LIGHTING_BRIGHTNESS_THRESHOLD
+
+# 灯具配置（5个房间，统一命名）
 LIGHTS = {
-    "light_room1": {"device_id": "room1", "name": "卧室1"},
-    "light_room2": {"device_id": "room2", "name": "卧室2"},
-    "light_living": {"device_id": "living", "name": "客厅"},
-    "light_kitchen": {"device_id": "kitchen", "name": "厨房"}
+    "light_living_room": {"device_id": "living_room", "name": "客厅"},
+    "light_bedroom1": {"device_id": "bedroom1", "name": "主卧"},
+    "light_bedroom2": {"device_id": "bedroom2", "name": "次卧"},
+    "light_kitchen": {"device_id": "kitchen", "name": "厨房"},
+    "light_study": {"device_id": "study", "name": "书房"}
 }
 
 # 全局灯具状态
@@ -123,36 +130,35 @@ def handle_auto_adjust(light_id, command):
     # 更新房间亮度
     state['room_brightness'] = room_brightness
     
-    # 统一的智能控制逻辑：基于30 lux阈值的开关控制
+    # 统一的智能控制逻辑：基于配置的亮度阈值的开关控制
     if state['auto_mode']:
-        brightness_threshold = 30  # lux
         old_power = state['power']
-        
-        if room_brightness < brightness_threshold:
+
+        if room_brightness < LIGHTING_BRIGHTNESS_THRESHOLD:
             # 房间太暗，自动开灯
             if not old_power:
                 state['power'] = True
                 state['brightness'] = 70  # 默认亮度70%
-                
+
                 # 发布状态更新
                 publish_lighting_state(light_id)
-                
+
                 # 记录事件
-                publish_lighting_event(light_id, "auto_power_on", 
-                                     f"Auto turned on due to low room brightness ({room_brightness} lux < {brightness_threshold} lux)")
-                print(f"📨 [{light_id}] 智能调节: 房间亮度{room_brightness:.1f} lux < {brightness_threshold} lux，自动开灯")
+                publish_lighting_event(light_id, "auto_power_on",
+                                     f"Auto turned on due to low room brightness ({room_brightness} lux < {LIGHTING_BRIGHTNESS_THRESHOLD} lux)")
+                print(f"📨 [{light_id}] 智能调节: 房间亮度{room_brightness:.1f} lux < {LIGHTING_BRIGHTNESS_THRESHOLD} lux，自动开灯")
         else:
             # 房间亮度足够，自动关灯
             if old_power:
                 state['power'] = False
-                
+
                 # 发布状态更新
                 publish_lighting_state(light_id)
-                
+
                 # 记录事件
-                publish_lighting_event(light_id, "auto_power_off", 
-                                     f"Auto turned off due to sufficient room brightness ({room_brightness} lux >= {brightness_threshold} lux)")
-                print(f"📨 [{light_id}] 智能调节: 房间亮度{room_brightness:.1f} lux >= {brightness_threshold} lux，自动关灯")
+                publish_lighting_event(light_id, "auto_power_off",
+                                     f"Auto turned off due to sufficient room brightness ({room_brightness} lux >= {LIGHTING_BRIGHTNESS_THRESHOLD} lux)")
+                print(f"📨 [{light_id}] 智能调节: 房间亮度{room_brightness:.1f} lux >= {LIGHTING_BRIGHTNESS_THRESHOLD} lux，自动关灯")
 
 
 def publish_lighting_state(light_id):
@@ -196,8 +202,8 @@ def simulate_room_brightness():
                 # 如果智能模式开启，自动调节
                 if state['auto_mode']:
                     handle_auto_adjust(light_id, {"room_brightness": new_brightness})
-            
-            time.sleep(30)  # 每30秒更新一次
+
+            time.sleep(LIGHTING_CHECK_INTERVAL)  # 根据配置的间隔更新
         except Exception as e:
             print(f"✗ 模拟房间亮度时出错: {e}")
             time.sleep(5)
