@@ -171,14 +171,8 @@ if [ $VENV_FOUND -eq 0 ]; then
     echo -e "${GREEN}✓ 虚拟环境创建完成${NC}"
 fi
 
-# 运行初始化脚本
-echo -e "${YELLOW}正在初始化空调数据...${NC}"
-if python init_ac.py > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ 空调数据初始化成功${NC}"
-else
-    echo -e "${RED}✗ 空调数据初始化失败${NC}"
-    echo "请手动运行: python init_ac.py"
-fi
+# 注意：空调数据已在 init_db.sql 中初始化完成
+echo -e "${GREEN}✓ 空调数据已在数据库初始化中完成${NC}"
 
 # 初始化门锁用户
 echo -e "${YELLOW}正在初始化门锁用户...${NC}"

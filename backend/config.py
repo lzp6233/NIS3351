@@ -79,15 +79,21 @@ FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", "8000"))
 # 要模拟的温湿度传感器设备列表
 SENSORS = [
     {
-        "device_id": "room1",
+        "device_id": "living_room",
         "location": "客厅",
-        "topic": "home/room1/temperature_humidity",
+        "topic": "home/living_room/temperature_humidity",
         "enabled": True
     },
     {
-        "device_id": "room2",
+        "device_id": "bedroom",
         "location": "卧室",
-        "topic": "home/room2/temperature_humidity",
+        "topic": "home/bedroom/temperature_humidity",
+        "enabled": True
+    },
+    {
+        "device_id": "kitchen",
+        "location": "厨房",
+        "topic": "home/kitchen/temperature_humidity",
         "enabled": True
     },
 ]
