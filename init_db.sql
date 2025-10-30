@@ -192,18 +192,64 @@ CREATE TABLE IF NOT EXISTS lighting_events (
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 11. 烟雾报警器：智能烟雾报警器表结构
+-- 11. 房间管理：统一的房间表（作为核心关联表）
+SELECT 'Creating rooms table...' AS status;
+
+CREATE TABLE IF NOT EXISTS rooms (
+    room_id VARCHAR(50) PRIMARY KEY,
+    room_name VARCHAR(100) NOT NULL,
+    floor INTEGER DEFAULT 1,
+    area FLOAT,                                 -- 面积（平方米）
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 初始化房间数据
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_id = 'living_room') THEN
+        INSERT INTO rooms (room_id, room_name, floor, area, description)
+        VALUES ('living_room', '客厅', 1, 35.5, '主要活动区域');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_id = 'bedroom') THEN
+        INSERT INTO rooms (room_id, room_name, floor, area, description)
+        VALUES ('bedroom', '卧室', 1, 20.0, '主卧室');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_id = 'kitchen') THEN
+        INSERT INTO rooms (room_id, room_name, floor, area, description)
+        VALUES ('kitchen', '厨房', 1, 12.0, '烹饪区域');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_id = 'room1') THEN
+        INSERT INTO rooms (room_id, room_name, floor, area, description)
+        VALUES ('room1', '房间1', 1, 18.0, '多功能房间');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_id = 'room2') THEN
+        INSERT INTO rooms (room_id, room_name, floor, area, description)
+        VALUES ('room2', '房间2', 1, 15.0, '次卧室');
+    END IF;
+END $$;
+
+-- 12. 烟雾报警器：智能烟雾报警器表结构（增强版）
 SELECT 'Creating tables for smoke alarm...' AS status;
 
--- 烟雾报警器状态表
+-- 烟雾报警器状态表（增强版）
 CREATE TABLE IF NOT EXISTS smoke_alarm_state (
     alarm_id VARCHAR(50) PRIMARY KEY,
+    room_id VARCHAR(50) REFERENCES rooms(room_id),  -- 关联到房间表
     location VARCHAR(50) NOT NULL,              -- 位置：living_room/bedroom/kitchen等
     smoke_level FLOAT DEFAULT 0.0,              -- 烟雾浓度 (0-100)
     alarm_active BOOLEAN DEFAULT false,         -- 报警状态
     battery INTEGER DEFAULT 100,                -- 电池电量百分比
     test_mode BOOLEAN DEFAULT false,            -- 测试模式
     sensitivity VARCHAR(20) DEFAULT 'medium',   -- 灵敏度：low/medium/high
+    installation_date TIMESTAMP,                -- 安装日期
+    last_maintenance_date TIMESTAMP,            -- 最后维护日期
+    device_model VARCHAR(100) DEFAULT 'SA-2024',-- 设备型号
+    firmware_version VARCHAR(50) DEFAULT '1.0.0',-- 固件版本
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -217,8 +263,110 @@ CREATE TABLE IF NOT EXISTS smoke_alarm_events (
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 自动化响应规则表
+CREATE TABLE IF NOT EXISTS smoke_alarm_response_rules (
+    rule_id SERIAL PRIMARY KEY,
+    rule_name VARCHAR(100) NOT NULL,
+    alarm_id VARCHAR(50) REFERENCES smoke_alarm_state(alarm_id),
+    room_id VARCHAR(50) REFERENCES rooms(room_id),
+    trigger_condition VARCHAR(50),              -- smoke_level_threshold, alarm_triggered, battery_low
+    condition_value FLOAT,                      -- 触发条件的值
+    action_type VARCHAR(50),                    -- unlock_door, turn_off_ac, turn_on_lights, send_notification
+    action_target VARCHAR(100),                 -- 目标设备ID
+    action_params TEXT,                         -- JSON格式的操作参数
+    enabled BOOLEAN DEFAULT true,
+    priority INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 用户通知配置表
+CREATE TABLE IF NOT EXISTS user_notification_config (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL UNIQUE,
+    username VARCHAR(100),
+    email VARCHAR(255),
+    phone VARCHAR(20),
+    notify_on_alarm BOOLEAN DEFAULT true,
+    notify_on_low_battery BOOLEAN DEFAULT true,
+    notify_on_maintenance_due BOOLEAN DEFAULT true,
+    notification_channels TEXT,                 -- JSON: ["email", "sms", "push"]
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 通知历史表
+CREATE TABLE IF NOT EXISTS notification_history (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL,
+    alarm_id VARCHAR(50),
+    notification_type VARCHAR(50),              -- alarm, low_battery, maintenance
+    channel VARCHAR(20),                        -- email, sms, push
+    subject VARCHAR(255),
+    message TEXT,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'sent',          -- sent, failed, pending
+    error_message TEXT
+);
+
+-- 设备维护记录表
+CREATE TABLE IF NOT EXISTS device_maintenance (
+    id SERIAL PRIMARY KEY,
+    alarm_id VARCHAR(50) REFERENCES smoke_alarm_state(alarm_id),
+    maintenance_type VARCHAR(50),               -- battery_replacement, cleaning, test, inspection
+    performed_by VARCHAR(100),
+    maintenance_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    next_maintenance_date TIMESTAMP,
+    notes TEXT,
+    cost DECIMAL(10, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 报警确认记录表
+CREATE TABLE IF NOT EXISTS alarm_acknowledgments (
+    id SERIAL PRIMARY KEY,
+    alarm_id VARCHAR(50) NOT NULL,
+    event_id INTEGER REFERENCES smoke_alarm_events(id),
+    acknowledged_by VARCHAR(100) NOT NULL,
+    acknowledged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    response_time INTEGER,                      -- 响应时间（秒）
+    action_taken TEXT,                          -- 采取的行动
+    resolution VARCHAR(50),                     -- false_alarm, real_fire, resolved, under_investigation
+    notes TEXT
+);
+
+-- 报警统计表（按天统计）
+CREATE TABLE IF NOT EXISTS alarm_statistics (
+    id SERIAL PRIMARY KEY,
+    alarm_id VARCHAR(50),
+    room_id VARCHAR(50),
+    stat_date DATE,
+    total_alarms INTEGER DEFAULT 0,
+    false_alarms INTEGER DEFAULT 0,
+    real_alarms INTEGER DEFAULT 0,
+    avg_response_time INTEGER,                  -- 平均响应时间（秒）
+    max_smoke_level FLOAT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(alarm_id, stat_date)
+);
+
 CREATE INDEX IF NOT EXISTS idx_lighting_events_light_time
 ON lighting_events(light_id, timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_smoke_alarm_events_alarm_time
+ON smoke_alarm_events(alarm_id, timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_smoke_alarm_rules_alarm
+ON smoke_alarm_response_rules(alarm_id, enabled);
+
+CREATE INDEX IF NOT EXISTS idx_notification_history_user_time
+ON notification_history(user_id, sent_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_device_maintenance_alarm
+ON device_maintenance(alarm_id, maintenance_date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_alarm_ack_alarm_time
+ON alarm_acknowledgments(alarm_id, acknowledged_at DESC);
 
 -- 初始化灯具状态（为每个房间创建灯具，仅在不存在时插入）
 DO $$
@@ -241,27 +389,49 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM lighting_state WHERE light_id = 'light_kitchen') THEN
         INSERT INTO lighting_state (light_id, device_id, power, brightness, auto_mode, color_temp)
         VALUES ('light_kitchen', 'kitchen', false, 50, false, 4000);
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_smoke_alarm_events_alarm_time
 ON smoke_alarm_events(alarm_id, timestamp DESC);
 
--- 初始化烟雾报警器（为主要房间创建报警器）
+-- 初始化烟雾报警器（为主要房间创建报警器，使用增强字段）
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM smoke_alarm_state WHERE alarm_id = 'smoke_living_room') THEN
-        INSERT INTO smoke_alarm_state (alarm_id, location, smoke_level, alarm_active, battery, sensitivity)
-        VALUES ('smoke_living_room', 'living_room', 0.0, false, 100, 'medium');
+        INSERT INTO smoke_alarm_state (alarm_id, room_id, location, smoke_level, alarm_active, battery, sensitivity, installation_date, device_model, firmware_version)
+        VALUES ('smoke_living_room', 'living_room', 'living_room', 0.0, false, 100, 'medium', NOW(), 'SA-2024-Pro', '1.0.0');
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM smoke_alarm_state WHERE alarm_id = 'smoke_bedroom') THEN
-        INSERT INTO smoke_alarm_state (alarm_id, location, smoke_level, alarm_active, battery, sensitivity)
-        VALUES ('smoke_bedroom', 'bedroom', 0.0, false, 100, 'medium');
+        INSERT INTO smoke_alarm_state (alarm_id, room_id, location, smoke_level, alarm_active, battery, sensitivity, installation_date, device_model, firmware_version)
+        VALUES ('smoke_bedroom', 'bedroom', 'bedroom', 0.0, false, 100, 'medium', NOW(), 'SA-2024-Pro', '1.0.0');
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM smoke_alarm_state WHERE alarm_id = 'smoke_kitchen') THEN
-        INSERT INTO smoke_alarm_state (alarm_id, location, smoke_level, alarm_active, battery, sensitivity)
-        VALUES ('smoke_kitchen', 'kitchen', 0.0, false, 100, 'high');
+        INSERT INTO smoke_alarm_state (alarm_id, room_id, location, smoke_level, alarm_active, battery, sensitivity, installation_date, device_model, firmware_version)
+        VALUES ('smoke_kitchen', 'kitchen', 'kitchen', 0.0, false, 100, 'high', NOW(), 'SA-2024-Pro', '1.0.0');
     END IF;
 END $$;
+
+-- 插入示例自动化规则
+INSERT INTO smoke_alarm_response_rules (rule_name, alarm_id, room_id, trigger_condition, condition_value, action_type, action_target, action_params, enabled, priority)
+VALUES
+    ('厨房烟雾报警-自动解锁前门', 'smoke_kitchen', 'kitchen', 'alarm_triggered', 1, 'unlock_door', 'FRONT_DOOR', '{"reason": "emergency_evacuation"}', true, 1),
+    ('厨房烟雾报警-关闭空调', 'smoke_kitchen', 'kitchen', 'alarm_triggered', 1, 'turn_off_ac', 'ac_kitchen', '{"prevent_smoke_spread": true}', true, 2),
+    ('客厅烟雾报警-打开照明', 'smoke_living_room', 'living_room', 'alarm_triggered', 1, 'turn_on_lights', 'light_living', '{"brightness": 100, "reason": "emergency_lighting"}', true, 1);
+
+-- 插入示例用户通知配置
+INSERT INTO user_notification_config (user_id, username, email, phone, notify_on_alarm, notify_on_low_battery, notification_channels)
+VALUES
+    ('admin', '系统管理员', 'admin@smarthome.com', '13800138000', true, true, '["email", "sms"]'),
+    ('user1', '张三', 'zhangsan@example.com', '13900139000', true, false, '["email"]');
+
+-- 插入示例维护记录
+INSERT INTO device_maintenance (alarm_id, maintenance_type, performed_by, maintenance_date, next_maintenance_date, notes, cost)
+VALUES
+    ('smoke_living_room', 'inspection', '技术人员-李四', NOW() - INTERVAL '30 days', NOW() + INTERVAL '335 days', '年度检查，设备状态良好', 50.00),
+    ('smoke_bedroom', 'battery_replacement', '技术人员-王五', NOW() - INTERVAL '180 days', NOW() + INTERVAL '545 days', '更换9V电池', 15.00);
 
 -- 插入初始化事件
 INSERT INTO lighting_events (light_id, event_type, detail)
@@ -280,5 +450,6 @@ VALUES
 SELECT '✓ Database initialization completed!' AS status;
 SELECT 'Database: smart_home' AS info;
 SELECT 'Tables: temperature_humidity_data, lock_state, lock_events, ac_state, ac_events, lighting_state, lighting_events' AS info;
-SELECT 'Tables: temperature_humidity_data, lock_state, lock_events, ac_state, ac_events, smoke_alarm_state, smoke_alarm_events' AS info;
+SELECT 'Smoke Alarm Tables: rooms, smoke_alarm_state, smoke_alarm_events, smoke_alarm_response_rules' AS info;
+SELECT 'Enhanced Tables: user_notification_config, notification_history, device_maintenance, alarm_acknowledgments, alarm_statistics' AS info;
 SELECT COUNT(*) || ' test records inserted' AS info FROM temperature_humidity_data;

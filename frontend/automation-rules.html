@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自动化规则配置 - NIS3351智慧家居</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        nav {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            font-weight: 500;
+            transition: opacity 0.3s;
+        }
+
+        nav a:hover {
+            opacity: 0.8;
+        }
+
+        .content-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #333;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
+        .rules-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .rules-table th,
+        .rules-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .rules-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .rules-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .rule-enabled {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .rule-disabled {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .priority-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .priority-high {
+            background: #dc3545;
+            color: white;
+        }
+
+        .priority-medium {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .priority-low {
+            background: #6c757d;
+            color: white;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .modal-title {
+            font-size: 1.5em;
+            color: #333;
+        }
+
+        .close {
+            font-size: 2em;
+            font-weight: bold;
+            color: #999;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close:hover {
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-group .hint {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .filter-bar select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 0.95em;
+        }
+
+        .rule-description {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="index.html">首页</a>
+            <a href="smoke-alarm.html">烟雾报警器</a>
+            <a href="alarm-dashboard.html">报警仪表板</a>
+            <a href="alarm-statistics.html">统计分析</a>
+            <a href="device-maintenance.html">设备维护</a>
+            <a href="automation-rules.html" style="font-weight: bold;">自动化规则</a>
+            <a href="room-management.html">房间管理</a>
+        </nav>
+
+        <header>
+            <h1>⚙️ 自动化规则配置</h1>
+            <p>配置烟雾报警器触发时的自动化响应</p>
+        </header>
+
+        <div class="content-section">
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-rules">0</div>
+                    <div class="stat-label">总规则数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="enabled-rules">0</div>
+                    <div class="stat-label">已启用</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="disabled-rules">0</div>
+                    <div class="stat-label">已禁用</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-section">
+            <div class="section-header">
+                <h2 class="section-title">规则列表</h2>
+                <button class="btn btn-primary" onclick="openCreateModal()">
+                    + 创建新规则
+                </button>
+            </div>
+
+            <div class="filter-bar">
+                <label>筛选:</label>
+                <select id="filter-enabled" onchange="loadRules()">
+                    <option value="all">全部规则</option>
+                    <option value="enabled">仅启用</option>
+                    <option value="disabled">仅禁用</option>
+                </select>
+                <select id="filter-action" onchange="loadRules()">
+                    <option value="">全部动作类型</option>
+                    <option value="unlock_door">解锁门锁</option>
+                    <option value="turn_off_ac">关闭空调</option>
+                    <option value="turn_on_lights">打开照明</option>
+                    <option value="send_notification">发送通知</option>
+                    <option value="trigger_alarm">触发警报</option>
+                </select>
+            </div>
+
+            <div id="loading" class="loading">正在加载规则...</div>
+
+            <div id="rules-container" style="display: none;">
+                <table class="rules-table">
+                    <thead>
+                        <tr>
+                            <th>规则名称</th>
+                            <th>触发条件</th>
+                            <th>执行动作</th>
+                            <th>目标设备</th>
+                            <th>优先级</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rules-table-body">
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <div class="empty-state-icon">📋</div>
+                <h3>暂无规则</h3>
+                <p>点击"创建新规则"按钮开始配置自动化响应</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建/编辑规则模态框 -->
+    <div id="rule-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modal-title">创建新规则</h2>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+
+            <form id="rule-form" onsubmit="submitRule(event)">
+                <input type="hidden" id="rule-id" value="">
+
+                <div class="form-group">
+                    <label for="rule-name">规则名称 *</label>
+                    <input type="text" id="rule-name" required>
+                    <div class="hint">给规则起一个描述性的名称</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="alarm-id">烟雾报警器</label>
+                    <select id="alarm-id">
+                        <option value="">全部报警器</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="room-id">房间</label>
+                    <select id="room-id">
+                        <option value="">全部房间</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="trigger-condition">触发条件 *</label>
+                    <select id="trigger-condition" required onchange="updateConditionValueHint()">
+                        <option value="alarm_triggered">报警触发</option>
+                        <option value="smoke_level_threshold">烟雾浓度阈值</option>
+                        <option value="battery_low">电池电量低</option>
+                        <option value="test_mode_activated">测试模式激活</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="condition-value">条件值</label>
+                    <input type="number" id="condition-value" step="0.1">
+                    <div class="hint" id="condition-value-hint">对于报警触发，使用 1</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="action-type">执行动作 *</label>
+                    <select id="action-type" required>
+                        <option value="unlock_door">解锁门锁</option>
+                        <option value="turn_off_ac">关闭空调</option>
+                        <option value="turn_on_lights">打开照明</option>
+                        <option value="send_notification">发送通知</option>
+                        <option value="trigger_alarm">触发警报</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="action-target">目标设备ID</label>
+                    <input type="text" id="action-target">
+                    <div class="hint">例如: FRONT_DOOR, ac_kitchen, light_living</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="action-params">动作参数 (JSON格式)</label>
+                    <textarea id="action-params">{"reason": "emergency"}</textarea>
+                    <div class="hint">JSON格式的额外参数</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="priority">优先级</label>
+                    <select id="priority">
+                        <option value="0">低</option>
+                        <option value="1" selected>中</option>
+                        <option value="2">高</option>
+                    </select>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="enabled" checked>
+                    <label for="enabled">启用此规则</label>
+                </div>
+
+                <div class="action-buttons">
+                    <button type="submit" class="btn btn-success">保存规则</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';
+        let allRules = [];
+        let allAlarms = [];
+        let allRooms = [];
+
+        // 页面加载时初始化
+        window.onload = async function() {
+            await loadAlarms();
+            await loadRooms();
+            await loadRules();
+        };
+
+        // 加载烟雾报警器列表
+        async function loadAlarms() {
+            try {
+                const response = await fetch(`${API_BASE}/smoke_alarms`);
+                allAlarms = await response.json();
+
+                const select = document.getElementById('alarm-id');
+                allAlarms.forEach(alarm => {
+                    const option = document.createElement('option');
+                    option.value = alarm.alarm_id;
+                    option.textContent = `${alarm.alarm_id} (${alarm.location || '未知位置'})`;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('加载报警器失败:', error);
+            }
+        }
+
+        // 加载房间列表
+        async function loadRooms() {
+            try {
+                const response = await fetch(`${API_BASE}/rooms`);
+                const data = await response.json();
+                allRooms = data.rooms || [];
+
+                const select = document.getElementById('room-id');
+                allRooms.forEach(room => {
+                    const option = document.createElement('option');
+                    option.value = room.room_id;
+                    option.textContent = room.room_name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('加载房间失败:', error);
+            }
+        }
+
+        // 加载规则列表
+        async function loadRules() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('rules-container').style.display = 'none';
+                document.getElementById('empty-state').style.display = 'none';
+
+                const response = await fetch(`${API_BASE}/automation/rules`);
+                const data = await response.json();
+
+                if (data.success) {
+                    allRules = data.rules || [];
+
+                    // 应用筛选
+                    const filterEnabled = document.getElementById('filter-enabled').value;
+                    const filterAction = document.getElementById('filter-action').value;
+
+                    let filteredRules = allRules;
+
+                    if (filterEnabled === 'enabled') {
+                        filteredRules = filteredRules.filter(r => r.enabled);
+                    } else if (filterEnabled === 'disabled') {
+                        filteredRules = filteredRules.filter(r => !r.enabled);
+                    }
+
+                    if (filterAction) {
+                        filteredRules = filteredRules.filter(r => r.action_type === filterAction);
+                    }
+
+                    displayRules(filteredRules);
+                    updateStats();
+                }
+            } catch (error) {
+                console.error('加载规则失败:', error);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // 显示规则列表
+        function displayRules(rules) {
+            const tbody = document.getElementById('rules-table-body');
+            tbody.innerHTML = '';
+
+            if (rules.length === 0) {
+                document.getElementById('empty-state').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('rules-container').style.display = 'block';
+
+            rules.forEach(rule => {
+                const row = document.createElement('tr');
+
+                const priorityClass = rule.priority >= 2 ? 'priority-high' :
+                                     rule.priority >= 1 ? 'priority-medium' : 'priority-low';
+                const priorityText = rule.priority >= 2 ? '高' :
+                                    rule.priority >= 1 ? '中' : '低';
+
+                row.innerHTML = `
+                    <td>
+                        <strong>${rule.rule_name}</strong>
+                        ${rule.room_id ? `<br><small>房间: ${rule.room_id}</small>` : ''}
+                    </td>
+                    <td>${getConditionText(rule.trigger_condition, rule.condition_value)}</td>
+                    <td>${getActionText(rule.action_type)}</td>
+                    <td>${rule.action_target || '未指定'}</td>
+                    <td><span class="priority-badge ${priorityClass}">${priorityText}</span></td>
+                    <td><span class="${rule.enabled ? 'rule-enabled' : 'rule-disabled'}">
+                        ${rule.enabled ? '✓ 已启用' : '✗ 已禁用'}
+                    </span></td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-primary" onclick="editRule(${rule.rule_id})">编辑</button>
+                            <button class="btn btn-sm ${rule.enabled ? 'btn-secondary' : 'btn-success'}"
+                                    onclick="toggleRule(${rule.rule_id}, ${!rule.enabled})">
+                                ${rule.enabled ? '禁用' : '启用'}
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteRule(${rule.rule_id})">删除</button>
+                        </div>
+                    </td>
+                `;
+
+                tbody.appendChild(row);
+            });
+        }
+
+        // 更新统计
+        function updateStats() {
+            const total = allRules.length;
+            const enabled = allRules.filter(r => r.enabled).length;
+            const disabled = total - enabled;
+
+            document.getElementById('total-rules').textContent = total;
+            document.getElementById('enabled-rules').textContent = enabled;
+            document.getElementById('disabled-rules').textContent = disabled;
+        }
+
+        // 获取条件文本
+        function getConditionText(condition, value) {
+            const conditions = {
+                'alarm_triggered': '报警触发',
+                'smoke_level_threshold': `烟雾浓度 > ${value || '?'}`,
+                'battery_low': `电池电量 < ${value || '?'}%`,
+                'test_mode_activated': '测试模式激活'
+            };
+            return conditions[condition] || condition;
+        }
+
+        // 获取动作文本
+        function getActionText(action) {
+            const actions = {
+                'unlock_door': '🔓 解锁门锁',
+                'turn_off_ac': '❄️ 关闭空调',
+                'turn_on_lights': '💡 打开照明',
+                'send_notification': '📧 发送通知',
+                'trigger_alarm': '🚨 触发警报'
+            };
+            return actions[action] || action;
+        }
+
+        // 打开创建模态框
+        function openCreateModal() {
+            document.getElementById('modal-title').textContent = '创建新规则';
+            document.getElementById('rule-form').reset();
+            document.getElementById('rule-id').value = '';
+            document.getElementById('enabled').checked = true;
+            document.getElementById('action-params').value = '{"reason": "emergency"}';
+            document.getElementById('rule-modal').style.display = 'block';
+        }
+
+        // 编辑规则
+        async function editRule(ruleId) {
+            const rule = allRules.find(r => r.rule_id === ruleId);
+            if (!rule) return;
+
+            document.getElementById('modal-title').textContent = '编辑规则';
+            document.getElementById('rule-id').value = rule.rule_id;
+            document.getElementById('rule-name').value = rule.rule_name;
+            document.getElementById('alarm-id').value = rule.alarm_id || '';
+            document.getElementById('room-id').value = rule.room_id || '';
+            document.getElementById('trigger-condition').value = rule.trigger_condition;
+            document.getElementById('condition-value').value = rule.condition_value || '';
+            document.getElementById('action-type').value = rule.action_type;
+            document.getElementById('action-target').value = rule.action_target || '';
+            document.getElementById('action-params').value = JSON.stringify(rule.action_params || {}, null, 2);
+            document.getElementById('priority').value = rule.priority || 0;
+            document.getElementById('enabled').checked = rule.enabled;
+
+            document.getElementById('rule-modal').style.display = 'block';
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('rule-modal').style.display = 'none';
+        }
+
+        // 提交规则
+        async function submitRule(event) {
+            event.preventDefault();
+
+            const ruleId = document.getElementById('rule-id').value;
+            const formData = {
+                rule_name: document.getElementById('rule-name').value,
+                alarm_id: document.getElementById('alarm-id').value || null,
+                room_id: document.getElementById('room-id').value || null,
+                trigger_condition: document.getElementById('trigger-condition').value,
+                condition_value: parseFloat(document.getElementById('condition-value').value) || null,
+                action_type: document.getElementById('action-type').value,
+                action_target: document.getElementById('action-target').value || null,
+                priority: parseInt(document.getElementById('priority').value),
+                enabled: document.getElementById('enabled').checked
+            };
+
+            // 解析JSON参数
+            try {
+                const paramsText = document.getElementById('action-params').value;
+                if (paramsText.trim()) {
+                    formData.action_params = JSON.parse(paramsText);
+                }
+            } catch (e) {
+                alert('动作参数JSON格式错误');
+                return;
+            }
+
+            try {
+                const url = ruleId ?
+                    `${API_BASE}/automation/rules/${ruleId}` :
+                    `${API_BASE}/automation/rules`;
+                const method = ruleId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(ruleId ? '规则更新成功' : '规则创建成功');
+                    closeModal();
+                    await loadRules();
+                } else {
+                    alert('操作失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('提交规则失败:', error);
+                alert('提交失败: ' + error.message);
+            }
+        }
+
+        // 切换规则状态
+        async function toggleRule(ruleId, enabled) {
+            try {
+                const response = await fetch(`${API_BASE}/automation/rules/${ruleId}/toggle`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ enabled: enabled })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    await loadRules();
+                } else {
+                    alert('操作失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('切换规则状态失败:', error);
+                alert('操作失败');
+            }
+        }
+
+        // 删除规则
+        async function deleteRule(ruleId) {
+            if (!confirm('确定要删除这条规则吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/automation/rules/${ruleId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('规则删除成功');
+                    await loadRules();
+                } else {
+                    alert('删除失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('删除规则失败:', error);
+                alert('删除失败');
+            }
+        }
+
+        // 更新条件值提示
+        function updateConditionValueHint() {
+            const condition = document.getElementById('trigger-condition').value;
+            const hints = {
+                'alarm_triggered': '对于报警触发，使用 1',
+                'smoke_level_threshold': '烟雾浓度百分比，例如 50.0',
+                'battery_low': '电池电量百分比，例如 20',
+                'test_mode_activated': '对于测试模式，使用 1'
+            };
+            document.getElementById('condition-value-hint').textContent = hints[condition] || '';
+        }
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('rule-modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        };
+    </script>
+</body>
+</html>

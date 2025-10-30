@@ -6,11 +6,14 @@ Flask Web 服务器
 - routes/air_conditioner.py - 空调模块（温湿度监控与控制）
 - routes/lock.py - 智能门锁模块
 - routes/lighting.py - 智能灯具模块
-- routes/smoke_alarm.py - 烟雾报警器模块
+- routes/smoke_alarm.py - 烟雾报警器模块（增强版）
+- routes/rooms.py - 房间管理模块
+- routes/automation_rules.py - 自动化响应规则模块
 """
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit
 from config import FLASK_HOST, FLASK_PORT
 
 # 导入各设备模块的路由蓝图
@@ -18,8 +21,21 @@ from routes.air_conditioner import air_conditioner_bp
 from routes.lock import lock_bp
 from routes.lighting import lighting_bp
 from routes.smoke_alarm import smoke_alarm_bp
+from routes.rooms import rooms_bp
+from routes.automation_rules import automation_bp
 
 app = Flask(__name__)
+
+# 配置 SocketIO（WebSocket实时推送）
+socketio = SocketIO(app,
+                    cors_allowed_origins="*",
+                    async_mode='threading',
+                    logger=False,
+                    engineio_logger=False)
+
+# 初始化 MQTT 客户端的 WebSocket 支持
+import mqtt_client
+mqtt_client.init_socketio(socketio)
 
 # 配置 CORS 以允许来自前端的请求
 # 开发环境设置 max_age=0 避免浏览器缓存 CORS 预检请求
@@ -64,8 +80,14 @@ app.register_blueprint(lock_bp)
 # 全屋灯具控制模块 - 负责人：lzx
 app.register_blueprint(lighting_bp)
 
-# 烟雾报警器模块
+# 烟雾报警器模块（增强版）
 app.register_blueprint(smoke_alarm_bp)
+
+# 房间管理模块
+app.register_blueprint(rooms_bp)
+
+# 自动化响应规则模块
+app.register_blueprint(automation_bp)
 
 
 @app.route("/")
@@ -120,6 +142,40 @@ def index():
     })
 
 
+# ==================== WebSocket 事件处理器 ====================
+
+@socketio.on('connect')
+def handle_connect():
+    """客户端连接事件"""
+    print(f"[WebSocket] Client connected: {request.sid}")
+    emit('connection_response', {'status': 'connected', 'message': 'WebSocket连接成功'})
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """客户端断开连接事件"""
+    print(f"[WebSocket] Client disconnected: {request.sid}")
+
+
+@socketio.on('subscribe')
+def handle_subscribe(data):
+    """客户端订阅特定设备的更新"""
+    device_type = data.get('device_type')  # smoke_alarm, ac, lock, lighting
+    device_id = data.get('device_id')
+    print(f"[WebSocket] Client {request.sid} subscribed to {device_type}:{device_id}")
+    emit('subscribe_response', {
+        'status': 'success',
+        'device_type': device_type,
+        'device_id': device_id
+    })
+
+
+@socketio.on('ping')
+def handle_ping():
+    """心跳检测"""
+    emit('pong', {'timestamp': __import__('time').time()})
+
+
 if __name__ == "__main__":
     print("="*60)
     print("Flask Web 服务器启动 - 模块化架构")
@@ -155,4 +211,9 @@ if __name__ == "__main__":
     print("    PUT  /smoke_alarms/<alarm_id>/sensitivity - 更新灵敏度")
     print("    POST /smoke_alarms/<alarm_id>/acknowledge - 确认/清除报警")
     print("="*60)
-    app.run(host=FLASK_HOST, port=FLASK_PORT, debug=False)
+    print("WebSocket功能:")
+    print("  ✅ 实时推送设备状态更新")
+    print("  ✅ 烟雾报警器实时通知")
+    print("  ✅ 门锁、空调、灯具状态实时同步")
+    print("="*60)
+    socketio.run(app, host=FLASK_HOST, port=FLASK_PORT, debug=False, allow_unsafe_werkzeug=True)

@@ -12,12 +12,22 @@ try:
     # 加载项目根目录的 .env 文件
     env_path = Path(__file__).parent.parent / '.env'
     load_dotenv(dotenv_path=env_path)
-    print(f"✓ 已加载配置文件: {env_path}")
+    try:
+        print(f"✓ 已加载配置文件: {env_path}")
+    except UnicodeEncodeError:
+        print(f"[OK] Config loaded: {env_path}")
 except ImportError:
-    print("⚠ 未安装 python-dotenv，使用默认配置")
-    print("  提示：运行 'pip install python-dotenv' 来启用 .env 文件支持")
+    try:
+        print("⚠ 未安装 python-dotenv，使用默认配置")
+        print("  提示：运行 'pip install python-dotenv' 来启用 .env 文件支持")
+    except UnicodeEncodeError:
+        print("[WARNING] python-dotenv not installed, using default config")
+        print("  Hint: Run 'pip install python-dotenv' to enable .env file support")
 except Exception as e:
-    print(f"⚠ 加载 .env 文件失败: {e}")
+    try:
+        print(f"⚠ 加载 .env 文件失败: {e}")
+    except UnicodeEncodeError:
+        print(f"[WARNING] Failed to load .env file: {e}")
 
 # ==================== 数据库配置 ====================
 DB_CONFIG = {

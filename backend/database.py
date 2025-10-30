@@ -5,7 +5,15 @@
 
 import sqlite3
 from config import DB_CONFIG, DB_TYPE, DB_PATH
-import py_opengauss
+
+# 条件导入 py_opengauss（仅在需要时导入）
+if DB_TYPE == 'opengauss':
+    try:
+        import py_opengauss
+    except ImportError:
+        print("[ERROR] py_opengauss not installed. Please run: pip install py-opengauss")
+        print("[INFO] Falling back to SQLite mode")
+        DB_TYPE = 'sqlite'
 
 
 def get_connection():
@@ -121,17 +129,33 @@ def get_connection():
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # 烟雾报警器状态表
+        # 烟雾报警器状态表（增强版）
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS rooms (
+                room_id VARCHAR(50) PRIMARY KEY,
+                room_name VARCHAR(100) NOT NULL,
+                floor INTEGER DEFAULT 1,
+                area FLOAT,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS smoke_alarm_state (
                 alarm_id VARCHAR(50) PRIMARY KEY,
+                room_id VARCHAR(50),
                 location VARCHAR(50) NOT NULL,
                 smoke_level FLOAT DEFAULT 0.0,
                 alarm_active BOOLEAN DEFAULT 0,
                 battery INTEGER DEFAULT 100,
                 test_mode BOOLEAN DEFAULT 0,
                 sensitivity VARCHAR(20) DEFAULT 'medium',
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                installation_date TIMESTAMP,
+                last_maintenance_date TIMESTAMP,
+                device_model VARCHAR(100) DEFAULT 'SA-2024',
+                firmware_version VARCHAR(50) DEFAULT '1.0.0',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (room_id) REFERENCES rooms(room_id)
             )
         """)
         # 烟雾报警器事件表
@@ -143,6 +167,103 @@ def get_connection():
                 smoke_level FLOAT,
                 detail TEXT,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # 自动化响应规则表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS smoke_alarm_response_rules (
+                rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_name VARCHAR(100) NOT NULL,
+                alarm_id VARCHAR(50),
+                room_id VARCHAR(50),
+                trigger_condition VARCHAR(50),
+                condition_value FLOAT,
+                action_type VARCHAR(50),
+                action_target VARCHAR(100),
+                action_params TEXT,
+                enabled BOOLEAN DEFAULT 1,
+                priority INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (alarm_id) REFERENCES smoke_alarm_state(alarm_id),
+                FOREIGN KEY (room_id) REFERENCES rooms(room_id)
+            )
+        """)
+        # 用户通知配置表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_notification_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id VARCHAR(50) NOT NULL UNIQUE,
+                username VARCHAR(100),
+                email VARCHAR(255),
+                phone VARCHAR(20),
+                notify_on_alarm BOOLEAN DEFAULT 1,
+                notify_on_low_battery BOOLEAN DEFAULT 1,
+                notify_on_maintenance_due BOOLEAN DEFAULT 1,
+                notification_channels TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # 通知历史表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notification_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id VARCHAR(50) NOT NULL,
+                alarm_id VARCHAR(50),
+                notification_type VARCHAR(50),
+                channel VARCHAR(20),
+                subject VARCHAR(255),
+                message TEXT,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status VARCHAR(20) DEFAULT 'sent',
+                error_message TEXT
+            )
+        """)
+        # 设备维护记录表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS device_maintenance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alarm_id VARCHAR(50),
+                maintenance_type VARCHAR(50),
+                performed_by VARCHAR(100),
+                maintenance_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                next_maintenance_date TIMESTAMP,
+                notes TEXT,
+                cost DECIMAL(10, 2),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (alarm_id) REFERENCES smoke_alarm_state(alarm_id)
+            )
+        """)
+        # 报警确认记录表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS alarm_acknowledgments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alarm_id VARCHAR(50) NOT NULL,
+                event_id INTEGER,
+                acknowledged_by VARCHAR(100) NOT NULL,
+                acknowledged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                response_time INTEGER,
+                action_taken TEXT,
+                resolution VARCHAR(50),
+                notes TEXT,
+                FOREIGN KEY (event_id) REFERENCES smoke_alarm_events(id)
+            )
+        """)
+        # 报警统计表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS alarm_statistics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alarm_id VARCHAR(50),
+                room_id VARCHAR(50),
+                stat_date DATE,
+                total_alarms INTEGER DEFAULT 0,
+                false_alarms INTEGER DEFAULT 0,
+                real_alarms INTEGER DEFAULT 0,
+                avg_response_time INTEGER,
+                max_smoke_level FLOAT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(alarm_id, stat_date)
             )
         """)
         conn.commit()

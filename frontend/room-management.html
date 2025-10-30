@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>房间管理 - 智能家居系统</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      font-family: "Segoe UI", "PingFang SC", sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: linear-gradient(135deg, #e8f0fe, #fdf6f0);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 30px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #e8f0fe;
+      padding-bottom: 20px;
+    }
+
+    .header h1 {
+      color: #2b4a8a;
+      margin: 0;
+      font-size: 2em;
+    }
+
+    .back-btn, .create-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      text-decoration: none;
+      display: inline-block;
+      transition: all 0.3s;
+    }
+
+    .back-btn {
+      background: #6c757d;
+      color: white;
+      margin-right: 10px;
+    }
+
+    .back-btn:hover {
+      background: #5a6268;
+    }
+
+    .create-btn {
+      background: #28a745;
+      color: white;
+    }
+
+    .create-btn:hover {
+      background: #218838;
+    }
+
+    .room-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .room-card {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 20px;
+      border: 2px solid #e9ecef;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .room-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+      border-color: #2b4a8a;
+    }
+
+    .room-card h3 {
+      margin: 0 0 10px 0;
+      color: #2b4a8a;
+      font-size: 1.4em;
+    }
+
+    .room-info {
+      margin: 10px 0;
+      color: #666;
+      font-size: 0.95em;
+    }
+
+    .room-info span {
+      display: block;
+      margin: 5px 0;
+    }
+
+    .device-count {
+      display: inline-block;
+      background: #007bff;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.85em;
+      margin-top: 10px;
+    }
+
+    .room-actions {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.3s;
+    }
+
+    .btn-edit {
+      background: #ffc107;
+      color: #333;
+    }
+
+    .btn-edit:hover {
+      background: #e0a800;
+    }
+
+    .btn-delete {
+      background: #dc3545;
+      color: white;
+    }
+
+    .btn-delete:hover {
+      background: #c82333;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e9ecef;
+      padding-bottom: 15px;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      color: #2b4a8a;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 500;
+    }
+
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .form-group textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 25px;
+    }
+
+    .btn-primary {
+      background: #007bff;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #0056b3;
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+
+    .empty-state p {
+      font-size: 1.2em;
+      margin-bottom: 20px;
+    }
+
+    .alert {
+      padding: 12px 20px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .alert.show {
+      display: block;
+    }
+
+    .alert-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .alert-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🏘️ 房间管理</h1>
+      <div>
+        <a href="index.html" class="back-btn">返回主页</a>
+        <button class="create-btn" onclick="showCreateModal()">创建房间</button>
+      </div>
+    </div>
+
+    <div id="alert" class="alert"></div>
+
+    <div id="loading" class="loading">
+      加载中...
+    </div>
+
+    <div id="room-grid" class="room-grid" style="display: none;">
+      <!-- 房间卡片将动态加载 -->
+    </div>
+
+    <div id="empty-state" class="empty-state" style="display: none;">
+      <p>还没有创建任何房间</p>
+      <button class="create-btn" onclick="showCreateModal()">创建第一个房间</button>
+    </div>
+  </div>
+
+  <!-- 创建/编辑房间模态框 -->
+  <div id="room-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-title">创建房间</h2>
+      </div>
+      <form id="room-form">
+        <div class="form-group">
+          <label for="room_id">房间ID *</label>
+          <input type="text" id="room_id" name="room_id" required
+                 placeholder="例如: living_room, bedroom_1">
+        </div>
+        <div class="form-group">
+          <label for="room_name">房间名称 *</label>
+          <input type="text" id="room_name" name="room_name" required
+                 placeholder="例如: 客厅, 卧室1">
+        </div>
+        <div class="form-group">
+          <label for="floor">楼层</label>
+          <input type="number" id="floor" name="floor" value="1" min="1">
+        </div>
+        <div class="form-group">
+          <label for="area">面积 (平方米)</label>
+          <input type="number" id="area" name="area" step="0.1" min="0"
+                 placeholder="例如: 25.5">
+        </div>
+        <div class="form-group">
+          <label for="description">描述</label>
+          <textarea id="description" name="description"
+                    placeholder="房间的用途、特点等..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5000';
+    let rooms = [];
+    let editingRoomId = null;
+
+    // 加载所有房间
+    async function loadRooms() {
+      try {
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('room-grid').style.display = 'none';
+        document.getElementById('empty-state').style.display = 'none';
+
+        const response = await fetch(`${API_BASE}/rooms`);
+        const data = await response.json();
+
+        if (data.success) {
+          rooms = data.rooms;
+          displayRooms();
+        } else {
+          showAlert('加载房间失败: ' + data.error, 'error');
+        }
+      } catch (error) {
+        console.error('Error loading rooms:', error);
+        showAlert('网络错误: ' + error.message, 'error');
+      } finally {
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+
+    // 显示房间列表
+    function displayRooms() {
+      const grid = document.getElementById('room-grid');
+      const emptyState = document.getElementById('empty-state');
+
+      if (rooms.length === 0) {
+        grid.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      grid.style.display = 'grid';
+      emptyState.style.display = 'none';
+
+      grid.innerHTML = rooms.map(room => `
+        <div class="room-card">
+          <h3>${room.room_name}</h3>
+          <div class="room-info">
+            <span>🆔 ID: ${room.room_id}</span>
+            <span>📍 楼层: ${room.floor || '-'}</span>
+            <span>📐 面积: ${room.area ? room.area + ' m²' : '-'}</span>
+            ${room.description ? `<span>📝 ${room.description}</span>` : ''}
+          </div>
+          <span class="device-count">设备数量: 正在加载...</span>
+          <div class="room-actions">
+            <button class="btn btn-edit" onclick="editRoom('${room.room_id}')">编辑</button>
+            <button class="btn btn-delete" onclick="deleteRoom('${room.room_id}', '${room.room_name}')">删除</button>
+          </div>
+        </div>
+      `).join('');
+
+      // 加载每个房间的设备数量
+      rooms.forEach(room => loadRoomDevices(room.room_id));
+    }
+
+    // 加载房间的设备信息
+    async function loadRoomDevices(roomId) {
+      try {
+        const response = await fetch(`${API_BASE}/rooms/${roomId}/devices`);
+        const data = await response.json();
+
+        const cards = document.querySelectorAll('.room-card');
+        cards.forEach(card => {
+          if (card.textContent.includes(`ID: ${roomId}`)) {
+            const badge = card.querySelector('.device-count');
+            badge.textContent = `设备: ${data.smoke_alarms_count || 0} 个烟雾报警器`;
+          }
+        });
+      } catch (error) {
+        console.error(`Error loading devices for room ${roomId}:`, error);
+      }
+    }
+
+    // 显示创建模态框
+    function showCreateModal() {
+      editingRoomId = null;
+      document.getElementById('modal-title').textContent = '创建房间';
+      document.getElementById('room-form').reset();
+      document.getElementById('room_id').disabled = false;
+      document.getElementById('room-modal').classList.add('show');
+    }
+
+    // 编辑房间
+    async function editRoom(roomId) {
+      editingRoomId = roomId;
+      document.getElementById('modal-title').textContent = '编辑房间';
+
+      const room = rooms.find(r => r.room_id === roomId);
+      if (!room) return;
+
+      document.getElementById('room_id').value = room.room_id;
+      document.getElementById('room_id').disabled = true;
+      document.getElementById('room_name').value = room.room_name;
+      document.getElementById('floor').value = room.floor || 1;
+      document.getElementById('area').value = room.area || '';
+      document.getElementById('description').value = room.description || '';
+
+      document.getElementById('room-modal').classList.add('show');
+    }
+
+    // 关闭模态框
+    function closeModal() {
+      document.getElementById('room-modal').classList.remove('show');
+      editingRoomId = null;
+    }
+
+    // 处理表单提交
+    document.getElementById('room-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = {
+        room_id: document.getElementById('room_id').value,
+        room_name: document.getElementById('room_name').value,
+        floor: parseInt(document.getElementById('floor').value),
+        area: parseFloat(document.getElementById('area').value) || null,
+        description: document.getElementById('description').value || null
+      };
+
+      try {
+        let response;
+        if (editingRoomId) {
+          // 更新房间
+          response = await fetch(`${API_BASE}/rooms/${editingRoomId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+          });
+        } else {
+          // 创建房间
+          response = await fetch(`${API_BASE}/rooms`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+          });
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          showAlert(editingRoomId ? '房间更新成功' : '房间创建成功', 'success');
+          closeModal();
+          loadRooms();
+        } else {
+          showAlert('操作失败: ' + data.error, 'error');
+        }
+      } catch (error) {
+        console.error('Error saving room:', error);
+        showAlert('网络错误: ' + error.message, 'error');
+      }
+    });
+
+    // 删除房间
+    async function deleteRoom(roomId, roomName) {
+      if (!confirm(`确定要删除房间 "${roomName}" 吗？\n\n注意：如果房间有关联设备，将无法删除。`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/rooms/${roomId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showAlert('房间删除成功', 'success');
+          loadRooms();
+        } else {
+          showAlert('删除失败: ' + data.error, 'error');
+        }
+      } catch (error) {
+        console.error('Error deleting room:', error);
+        showAlert('网络错误: ' + error.message, 'error');
+      }
+    }
+
+    // 显示提示信息
+    function showAlert(message, type) {
+      const alert = document.getElementById('alert');
+      alert.textContent = message;
+      alert.className = `alert alert-${type} show`;
+
+      setTimeout(() => {
+        alert.classList.remove('show');
+      }, 5000);
+    }
+
+    // 点击模态框外部关闭
+    document.getElementById('room-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'room-modal') {
+        closeModal();
+      }
+    });
+
+    // 页面加载时获取房间列表
+    window.addEventListener('load', loadRooms);
+  </script>
+</body>
+</html>
