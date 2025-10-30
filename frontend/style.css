@@ -605,10 +605,34 @@ body {
     gap: 15px;
 }
 
+.light-controls .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
 .light-controls .control-group {
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+/* 使“智能调节”在该行靠右且横向布局 */
+.light-controls .auto-mode-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin-left: auto;
+}
+
+/* 开关文字，避免与滑块重叠 */
+.switch-text {
+    margin-left: 10px;
+    color: #555;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .light-controls label {

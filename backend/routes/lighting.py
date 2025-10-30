@@ -131,7 +131,7 @@ def lighting_events(light_id):
 
 @lighting_bp.route("/lighting/<light_id>/auto-adjust", methods=["POST"])
 def auto_adjust_lighting(light_id):
-    """智能调节灯具亮度（根据房间亮度）"""
+    """智能调节灯具亮度（根据房间种类目标照度）"""
     body = request.get_json(force=True) or {}
     room_brightness = body.get('room_brightness', 0)  # 房间亮度传感器读数
     
@@ -140,95 +140,131 @@ def auto_adjust_lighting(light_id):
     if not current_state:
         return jsonify({"error": "灯具未找到"}), 404
     
-    # 如果智能模式未开启，不进行自动调节
+    # 如果智能模式未开启：仅更新房间亮度，保持电源与亮度不变
     if not current_state.get('auto_mode', False):
+        upsert_lighting_state(
+            light_id=light_id,
+            device_id=current_state.get('device_id'),
+            room_brightness=room_brightness
+        )
         return jsonify({
             "status": "info",
-            "message": "智能调节模式未开启",
-            "light_id": light_id
+            "message": "已更新房间亮度（未开启智能调节，不调整灯具）",
+            "light_id": light_id,
+            "room_brightness": room_brightness
         })
-    
-    # 新的智能控制逻辑：
-    # 1. 未开启"智能控制"时，保持关灯状态
-    # 2. 开启"智能控制"时，当房间亮度低于某个值时，自动开灯
-    
-    # 设置房间亮度阈值（低于此值自动开灯）
-    brightness_threshold = 30  # lux
-    
+
+    # 目标照度映射：卧室=300lux（room1/room2），客厅=living=600lux，厨房=kitchen=500lux
+    # 更稳健的房间类型识别：优先用 light_id 模式匹配，其次回退数据库 device_id
+    def infer_device_id(light_id_value: str, db_device_id: str | None) -> str:
+        lid = (light_id_value or '').lower()
+        if 'living' in lid:
+            return 'living'
+        if 'kitchen' in lid:
+            return 'kitchen'
+        if 'room2' in lid:
+            return 'room2'
+        if 'room1' in lid:
+            return 'room1'
+        # 回退 DB
+        if db_device_id in {'living','kitchen','room1','room2'}:
+            return db_device_id
+        return 'room1'
+
+    device_id = infer_device_id(light_id, current_state.get('device_id'))
+    target_map = {
+        'room1': 300,
+        'room2': 300,
+        'living': 600,
+        'kitchen': 500,
+    }
+    target_lux = target_map.get(device_id, 400)
+
     old_power = current_state.get('power', False)
-    old_brightness = current_state.get('brightness', 50)
-    
-    # 智能控制逻辑
-    if room_brightness < brightness_threshold:
-        # 房间太暗，自动开灯
+    old_brightness = int(current_state.get('brightness', 50) or 50)
+
+    # 带回差+滞回区的控制策略：
+    # - 当房间亮度明显低于目标(≤target-50)：亮度+10%
+    # - 当房间亮度明显高于目标(≥target+50)：亮度-10%，若已≤10%则关闭
+    # - 在 [target-50, target+50] 范围内：维持当前亮度，避免频繁抖动
+    margin = 50.0  # lux 滞回（保持区）
+    off_margin = 100.0  # 仅当显著过亮(≥target+off_margin)才考虑关灯
+    lower = target_lux - margin
+    upper = target_lux + margin
+    upper_off = target_lux + off_margin
+
+    new_power = old_power
+    new_brightness = old_brightness
+
+    if room_brightness is None:
+        room_brightness = 0
+
+    if room_brightness <= lower:
+        # 房间明显偏暗：若原来是关灯，则以可感知的基线亮度开灯；否则按步进提升
         if not old_power:
-            upsert_lighting_state(
-                light_id=light_id,
-                power=True,
-                brightness=70,  # 默认亮度70%
-                room_brightness=room_brightness
-            )
-            
-            # 记录事件
-            insert_lighting_event(
-                light_id=light_id,
-                event_type='auto_power_on',
-                old_value=str(old_power),
-                new_value='True',
-                detail=f"Auto turned on due to low room brightness ({room_brightness} lux < {brightness_threshold} lux)"
-            )
-            
-            return jsonify({
-                "status": "success",
-                "message": f"房间亮度过低({room_brightness} lux)，已自动开灯",
-                "light_id": light_id,
-                "room_brightness": room_brightness,
-                "action": "turned_on",
-                "brightness": 70
-            })
+            new_brightness = max(40, old_brightness or 0)  # 基线 40%
         else:
-            # 灯已开启，保持当前状态
-            return jsonify({
-                "status": "info",
-                "message": f"灯已开启，房间亮度: {room_brightness} lux",
-                "light_id": light_id,
-                "room_brightness": room_brightness,
-                "action": "maintained"
-            })
+            new_brightness = min(100, old_brightness + 10)
+        new_power = True
+        action = 'increase_or_turn_on'
+    elif room_brightness >= upper:
+        # 房间明显偏亮：优先降低亮度；只有当显著过亮且已接近下限，才关灯
+        if old_brightness > 20:
+            new_brightness = max(20, old_brightness - 10)
+            new_power = True
+            action = 'decrease'
+        else:
+            if room_brightness >= upper_off:
+                new_power = False
+                new_brightness = old_brightness
+                action = 'turn_off'
+            else:
+                # 仍在 upper 与 upper_off 之间，不关灯
+                new_power = True
+                new_brightness = 20
+                action = 'hold_min'
     else:
-        # 房间亮度足够，自动关灯
-        if old_power:
-            upsert_lighting_state(
-                light_id=light_id,
-                power=False,
-                room_brightness=room_brightness
-            )
-            
-            # 记录事件
-            insert_lighting_event(
-                light_id=light_id,
-                event_type='auto_power_off',
-                old_value=str(old_power),
-                new_value='False',
-                detail=f"Auto turned off due to sufficient room brightness ({room_brightness} lux >= {brightness_threshold} lux)"
-            )
-            
-            return jsonify({
-                "status": "success",
-                "message": f"房间亮度充足({room_brightness} lux)，已自动关灯",
-                "light_id": light_id,
-                "room_brightness": room_brightness,
-                "action": "turned_off"
-            })
-        else:
-            # 灯已关闭，保持当前状态
-            return jsonify({
-                "status": "info",
-                "message": f"灯已关闭，房间亮度: {room_brightness} lux",
-                "light_id": light_id,
-                "room_brightness": room_brightness,
-                "action": "maintained"
-            })
+        # 目标范围内，保持
+        action = 'maintain'
+
+    upsert_lighting_state(
+        light_id=light_id,
+        device_id=device_id,
+        power=new_power,
+        brightness=new_brightness,
+        room_brightness=room_brightness
+    )
+
+    # 记录事件
+    if old_power != new_power:
+        insert_lighting_event(
+            light_id=light_id,
+            event_type='auto_power_on' if new_power else 'auto_power_off',
+            old_value=str(old_power),
+            new_value=str(new_power),
+            detail=f"Auto {('on' if new_power else 'off')} due to room {room_brightness} lux vs target {target_lux}±{margin}"
+        )
+
+    if new_brightness != old_brightness:
+        insert_lighting_event(
+            light_id=light_id,
+            event_type='auto_brightness_adjust',
+            old_value=str(old_brightness),
+            new_value=str(new_brightness),
+            detail=f"Auto {action}: room {room_brightness} lux, target {target_lux}±{margin}"
+        )
+
+    return jsonify({
+        "status": "success",
+        "message": f"已根据房间亮度{action}亮度至 {new_brightness}%（目标 {target_lux} lux, 滞回±{int(margin)}, 关灯阈+{int(off_margin)}）",
+        "light_id": light_id,
+        "room_brightness": room_brightness,
+        "target_lux": target_lux,
+        "old_brightness": old_brightness,
+        "new_brightness": new_brightness,
+        "power": new_power,
+        "action": action
+    })
 
 
 @lighting_bp.route("/lighting/batch-control", methods=["POST"])
@@ -271,10 +307,3 @@ def batch_control_lighting():
         "message": f"批量控制完成，共处理 {len(results)} 个灯具",
         "results": results
     })
-
-
-
-
-
-
-

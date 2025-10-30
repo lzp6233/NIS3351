@@ -10,6 +10,8 @@ const API_BASE = 'http://localhost:5000';
 let lights = [];
 let selectedLights = new Set();
 let currentLightId = '';
+let autoRefreshTimer = null;
+let isAutoRefreshing = false;
 
 
 // DOM 元素
@@ -24,6 +26,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initElements();
     initEventListeners();
     loadLights();
+    startAutoRefreshTimer();
 });
 
 function initElements() {
@@ -109,6 +112,14 @@ async function loadLights() {
         if (!response.ok) throw new Error('加载失败');
         
         lights = await response.json();
+        // 规范化字段类型，确保 room_brightness 为数字以便渲染到两处
+        lights = lights.map(l => {
+            const rb = (typeof l.room_brightness === 'string') ? parseFloat(l.room_brightness) : l.room_brightness;
+            return {
+                ...l,
+                room_brightness: Number.isFinite(rb) ? rb : l.room_brightness
+            };
+        });
         renderLights();
         updateLightSelect();
         statusSpan.textContent = `已加载 ${lights.length} 个灯具`;
@@ -120,13 +131,23 @@ async function loadLights() {
 
 // 更新灯具选择下拉框
 function updateLightSelect() {
-    lightSelect.innerHTML = '<option value="">请选择灯具</option>';
+    lightSelect.innerHTML = '';
     lights.forEach(light => {
         const option = document.createElement('option');
         option.value = light.light_id;
-        option.textContent = `${light.light_id} (${light.device_id})`;
+        const deviceLabel = getDeviceNameByLightId(light.light_id);
+        option.textContent = `${getLightDisplayName(light.light_id)} (${deviceLabel})`;
         lightSelect.appendChild(option);
     });
+
+    // 默认选择 light_room1（如存在），否则选第一项
+    const defaultId = 'light_room1';
+    if (!currentLightId) {
+        const hasDefault = Array.from(lightSelect.options).some(opt => opt.value === defaultId);
+        currentLightId = hasDefault ? defaultId : (lightSelect.options[0] ? lightSelect.options[0].value : '');
+    }
+    lightSelect.value = currentLightId;
+    if (currentLightId) updateStats(currentLightId);
 }
 
 // 更新统计信息
@@ -134,7 +155,8 @@ function updateStats(lightId) {
     const light = lights.find(l => l.light_id === lightId);
     if (light) {
         document.getElementById('currentBrightness').textContent = `${light.brightness}%`;
-        document.getElementById('currentRoomBrightness').textContent = `${light.room_brightness || 0} lux`;
+        const rb = typeof light.room_brightness === 'number' ? light.room_brightness.toFixed(1) : '--';
+        document.getElementById('currentRoomBrightness').textContent = `${rb} lux`;
         document.getElementById('autoModeStatus').textContent = light.auto_mode ? '开启' : '关闭';
         document.getElementById('colorTemp').textContent = `${light.color_temp}K`;
     }
@@ -163,12 +185,23 @@ function createLightCard(light) {
         </div>
         
         <div class="light-controls">
-            <!-- 开关控制 -->
-            <div class="control-group">
-                <button class="light-btn ${light.power ? 'active' : ''}" 
-                        onclick="toggleLight('${light.light_id}', ${!light.power})">
-                    ${light.power ? '关闭' : '开启'}
-                </button>
+            <!-- 开关 + 智能模式（同一行） -->
+            <div class="control-row">
+                <div class="control-group">
+                    <button class="light-btn ${light.power ? 'active' : ''}" 
+                            onclick="toggleLight('${light.light_id}', ${!light.power})">
+                        ${light.power ? '关闭' : '开启'}
+                    </button>
+                </div>
+                <!-- 智能模式 -->
+                <div class="control-group auto-mode-group">
+                    <span class="switch-text">智能调节</span>
+                    <label class="switch">
+                        <input type="checkbox" ${light.auto_mode ? 'checked' : ''} 
+                               onchange="setAutoMode('${light.light_id}', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
             </div>
             
             <!-- 亮度控制 -->
@@ -185,26 +218,11 @@ function createLightCard(light) {
                        onchange="setColorTemp('${light.light_id}', this.value)">
             </div>
             
-            <!-- 智能模式 -->
-            <div class="control-group">
-                <label class="switch">
-                    <input type="checkbox" ${light.auto_mode ? 'checked' : ''} 
-                           onchange="setAutoMode('${light.light_id}', this.checked)">
-                    <span class="slider"></span>
-                    智能调节
-                </label>
-            </div>
+            
             
             <!-- 房间亮度显示 -->
             <div class="room-brightness">
-                <small>房间亮度: ${light.room_brightness ? light.room_brightness.toFixed(1) : '--'} lux</small>
-            </div>
-            
-            <!-- 智能调节按钮 -->
-            <div class="control-group">
-                <button class="auto-btn" onclick="autoAdjustLight('${light.light_id}')">
-                    🔄 智能调节
-                </button>
+                <small>房间亮度: ${typeof light.room_brightness === 'number' ? light.room_brightness.toFixed(1) : '--'} lux</small>
             </div>
         </div>
     `;
@@ -221,6 +239,46 @@ function getLightDisplayName(lightId) {
         'light_kitchen': '厨房'
     };
     return nameMap[lightId] || lightId;
+}
+
+// 根据 light_id 映射设备标识（用于下拉框括号内显示）
+function getDeviceNameByLightId(lightId) {
+    const deviceMap = {
+        'light_room1': 'room1',
+        'light_room2': 'room2',
+        'light_living': 'living',
+        'light_kitchen': 'kitchen'
+    };
+    return deviceMap[lightId] || lightId;
+}
+
+// 根据 light_id 获取目标照度（lux）
+function getTargetLuxForLightId(lightId) {
+    const targetMap = {
+        'light_room1': 300,
+        'light_room2': 300,
+        'light_living': 600,
+        'light_kitchen': 500
+    };
+    return targetMap[lightId] || 400;
+}
+
+// 启动自动刷新定时器：每10秒按需自动调节并刷新
+function startAutoRefreshTimer() {
+    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    autoRefreshTimer = setInterval(async () => {
+        if (isAutoRefreshing) return;
+        isAutoRefreshing = true;
+        try {
+            const lid = currentLightId || 'light_room1';
+            await simulateRoomBrightnessAndAutoAdjust(lid);
+            await loadLights();
+        } catch (e) {
+            console.error('自动刷新失败:', e);
+        } finally {
+            isAutoRefreshing = false;
+        }
+    }, 10000);
 }
 
 // 控制灯具开关
@@ -287,7 +345,11 @@ async function setAutoMode(lightId, autoMode) {
         });
         
         if (response.ok) {
-            loadLights();
+            // 开启智能模式后，立即触发一次智能调节并刷新
+            if (autoMode) {
+                await simulateRoomBrightnessAndAutoAdjust(lightId);
+            }
+            await loadLights();
         }
     } catch (error) {
         console.error('设置智能模式失败:', error);
@@ -426,19 +488,16 @@ async function applyBatchControl() {
 // 统一的房间亮度模拟和智能调节函数
 async function simulateRoomBrightnessAndAutoAdjust(lightId) {
     try {
-        // 生成模拟房间亮度
-        const now = new Date();
-        const hour = now.getHours();
-        
-        // 模拟房间亮度：白天高，夜晚低
-        let roomBrightness;
-        if (6 <= hour && hour <= 18) {  // 白天
-            roomBrightness = Math.random() * 40 + 60;  // 60-100 lux
-        } else {  // 夜晚
-            roomBrightness = Math.random() * 30 + 10;  // 10-40 lux
-        }
-        
-        roomBrightness = Math.round(roomBrightness * 10) / 10;  // 保留一位小数
+        // 基于房间类型与时段生成更贴近实际的房间亮度
+        const target = getTargetLuxForLightId(lightId);
+        const hour = new Date().getHours();
+        // 白天略高、夜晚略低的时段因子（0.6 ~ 1.1）
+        const dayFactor = (hour >= 7 && hour <= 18) ? 1.0 + (Math.random() * 0.1) : 0.6 + (Math.random() * 0.2);
+        const base = target * dayFactor;
+        // 近似正态噪声：多次均匀随机求平均
+        const noise = target * 0.15 * (((Math.random()+Math.random()+Math.random())/3) - 0.5) * 2; // ≈ ±15%
+        let roomBrightness = Math.max(0, base + noise);
+        roomBrightness = Math.round(roomBrightness * 10) / 10; // 一位小数
         
         // 调用智能调节API
         const response = await fetch(`${API_BASE}/lighting/${lightId}/auto-adjust`, {
@@ -452,9 +511,12 @@ async function simulateRoomBrightnessAndAutoAdjust(lightId) {
         });
         
         if (response.ok) {
-            const result = await response.json();
-            console.log('智能调节结果:', result.message);
-            statusSpan.textContent = `房间亮度: ${roomBrightness} lux - ${result.message}`;
+            // 乐观更新本地内存中的房间亮度，保证 UI 立即同步
+            lights = lights.map(l => l.light_id === lightId ? { ...l, room_brightness: roomBrightness } : l);
+            if (currentLightId === lightId) {
+                updateStats(lightId);
+            }
+            statusSpan.textContent = `房间亮度: ${roomBrightness} lux`;
         } else {
             console.error('智能调节失败:', response.status);
             statusSpan.textContent = '智能调节失败';
@@ -464,4 +526,3 @@ async function simulateRoomBrightnessAndAutoAdjust(lightId) {
         statusSpan.textContent = '刷新失败';
     }
 }
-
