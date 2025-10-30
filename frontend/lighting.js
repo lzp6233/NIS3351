@@ -139,8 +139,8 @@ function updateLightSelect() {
         lightSelect.appendChild(option);
     });
 
-    // 默认选择 light_living（如存在），否则选第一项
-    const defaultId = 'light_living';
+    // 默认选择 light_living_room（如存在），否则选第一项
+    const defaultId = 'light_living_room';
     if (!currentLightId) {
         const hasDefault = Array.from(lightSelect.options).some(opt => opt.value === defaultId);
         currentLightId = hasDefault ? defaultId : (lightSelect.options[0] ? lightSelect.options[0].value : '');
@@ -229,13 +229,14 @@ function createLightCard(light) {
     return card;
 }
 
-// 获取灯具显示名称（统一房间命名）
+// 获取灯具显示名称（统一房间命名：5个房间）
 function getLightDisplayName(lightId) {
     const nameMap = {
-        'light_living': '客厅',
+        'light_living_room': '客厅',
         'light_bedroom1': '主卧',
         'light_bedroom2': '次卧',
-        'light_kitchen': '厨房'
+        'light_kitchen': '厨房',
+        'light_study': '书房'
     };
     return nameMap[lightId] || lightId;
 }
@@ -243,10 +244,11 @@ function getLightDisplayName(lightId) {
 // 根据 light_id 映射设备标识（用于下拉框括号内显示）
 function getDeviceNameByLightId(lightId) {
     const deviceMap = {
-        'light_living': 'living',
+        'light_living_room': 'living_room',
         'light_bedroom1': 'bedroom1',
         'light_bedroom2': 'bedroom2',
-        'light_kitchen': 'kitchen'
+        'light_kitchen': 'kitchen',
+        'light_study': 'study'
     };
     return deviceMap[lightId] || lightId;
 }
@@ -254,10 +256,11 @@ function getDeviceNameByLightId(lightId) {
 // 根据 light_id 获取目标照度（lux）
 function getTargetLuxForLightId(lightId) {
     const targetMap = {
-        'light_living': 600,
+        'light_living_room': 600,
         'light_bedroom1': 300,
         'light_bedroom2': 300,
-        'light_kitchen': 500
+        'light_kitchen': 500,
+        'light_study': 400
     };
     return targetMap[lightId] || 400;
 }

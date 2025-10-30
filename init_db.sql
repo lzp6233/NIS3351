@@ -149,9 +149,9 @@ ON ac_events(ac_id, timestamp DESC);
 -- 初始化空调状态（统一房间命名）
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM ac_state WHERE ac_id = 'ac_living') THEN
+    IF NOT EXISTS (SELECT 1 FROM ac_state WHERE ac_id = 'ac_living_room') THEN
         INSERT INTO ac_state (ac_id, device_id, power, mode, target_temp, fan_speed)
-        VALUES ('ac_living', 'living', false, 'cool', 26.0, 'auto');
+        VALUES ('ac_living_room', 'living_room', false, 'cool', 26.0, 'auto');
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM ac_state WHERE ac_id = 'ac_bedroom1') THEN
@@ -168,15 +168,21 @@ BEGIN
         INSERT INTO ac_state (ac_id, device_id, power, mode, target_temp, fan_speed)
         VALUES ('ac_kitchen', 'kitchen', false, 'cool', 26.0, 'auto');
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM ac_state WHERE ac_id = 'ac_study') THEN
+        INSERT INTO ac_state (ac_id, device_id, power, mode, target_temp, fan_speed)
+        VALUES ('ac_study', 'study', false, 'cool', 26.0, 'auto');
+    END IF;
 END $$;
 
 -- 插入初始化事件
 INSERT INTO ac_events (ac_id, event_type, detail)
 VALUES
-    ('ac_living', 'INIT', 'Air conditioner initialized'),
+    ('ac_living_room', 'INIT', 'Air conditioner initialized'),
     ('ac_bedroom1', 'INIT', 'Air conditioner initialized'),
     ('ac_bedroom2', 'INIT', 'Air conditioner initialized'),
-    ('ac_kitchen', 'INIT', 'Air conditioner initialized');
+    ('ac_kitchen', 'INIT', 'Air conditioner initialized'),
+    ('ac_study', 'INIT', 'Air conditioner initialized');
 
 -- 全屋灯具控制：智能灯具表结构
 SELECT 'Creating tables for smart lighting...' AS status;
@@ -216,12 +222,12 @@ CREATE TABLE IF NOT EXISTS rooms (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 初始化房间数据（统一命名：living, bedroom1, bedroom2, kitchen）
+-- 初始化房间数据（统一命名：living_room, bedroom1, bedroom2, kitchen, study）
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_id = 'living') THEN
+    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_id = 'living_room') THEN
         INSERT INTO rooms (room_id, room_name, floor, area, description)
-        VALUES ('living', '客厅', 1, 35.5, '主要活动区域');
+        VALUES ('living_room', '客厅', 1, 35.5, '主要活动区域');
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_id = 'bedroom1') THEN
@@ -237,6 +243,11 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_id = 'kitchen') THEN
         INSERT INTO rooms (room_id, room_name, floor, area, description)
         VALUES ('kitchen', '厨房', 1, 12.0, '烹饪区域');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_id = 'study') THEN
+        INSERT INTO rooms (room_id, room_name, floor, area, description)
+        VALUES ('study', '书房', 1, 18.0, '学习工作空间');
     END IF;
 END $$;
 
@@ -378,9 +389,9 @@ ON alarm_acknowledgments(alarm_id, acknowledged_at DESC);
 -- 初始化灯具状态（统一房间命名）
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM lighting_state WHERE light_id = 'light_living') THEN
+    IF NOT EXISTS (SELECT 1 FROM lighting_state WHERE light_id = 'light_living_room') THEN
         INSERT INTO lighting_state (light_id, device_id, power, brightness, auto_mode, color_temp)
-        VALUES ('light_living', 'living', false, 50, false, 4000);
+        VALUES ('light_living_room', 'living_room', false, 50, false, 4000);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM lighting_state WHERE light_id = 'light_bedroom1') THEN
@@ -397,6 +408,11 @@ BEGIN
         INSERT INTO lighting_state (light_id, device_id, power, brightness, auto_mode, color_temp)
         VALUES ('light_kitchen', 'kitchen', false, 50, false, 4000);
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM lighting_state WHERE light_id = 'light_study') THEN
+        INSERT INTO lighting_state (light_id, device_id, power, brightness, auto_mode, color_temp)
+        VALUES ('light_study', 'study', false, 50, false, 4000);
+    END IF;
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_smoke_alarm_events_alarm_time
@@ -405,9 +421,9 @@ ON smoke_alarm_events(alarm_id, timestamp DESC);
 -- 初始化烟雾报警器（统一房间命名）
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM smoke_alarm_state WHERE alarm_id = 'smoke_living') THEN
+    IF NOT EXISTS (SELECT 1 FROM smoke_alarm_state WHERE alarm_id = 'smoke_living_room') THEN
         INSERT INTO smoke_alarm_state (alarm_id, room_id, location, smoke_level, alarm_active, battery, sensitivity, installation_date, device_model, firmware_version)
-        VALUES ('smoke_living', 'living', 'living', 0.0, false, 100, 'medium', NOW(), 'SA-2024-Pro', '1.0.0');
+        VALUES ('smoke_living_room', 'living_room', 'living_room', 0.0, false, 100, 'medium', NOW(), 'SA-2024-Pro', '1.0.0');
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM smoke_alarm_state WHERE alarm_id = 'smoke_bedroom1') THEN
@@ -424,6 +440,11 @@ BEGIN
         INSERT INTO smoke_alarm_state (alarm_id, room_id, location, smoke_level, alarm_active, battery, sensitivity, installation_date, device_model, firmware_version)
         VALUES ('smoke_kitchen', 'kitchen', 'kitchen', 0.0, false, 100, 'high', NOW(), 'SA-2024-Pro', '1.0.0');
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM smoke_alarm_state WHERE alarm_id = 'smoke_study') THEN
+        INSERT INTO smoke_alarm_state (alarm_id, room_id, location, smoke_level, alarm_active, battery, sensitivity, installation_date, device_model, firmware_version)
+        VALUES ('smoke_study', 'study', 'study', 0.0, false, 100, 'medium', NOW(), 'SA-2024-Pro', '1.0.0');
+    END IF;
 END $$;
 
 -- 插入示例自动化规则
@@ -431,7 +452,7 @@ INSERT INTO smoke_alarm_response_rules (rule_name, alarm_id, room_id, trigger_co
 VALUES
     ('厨房烟雾报警-自动解锁前门', 'smoke_kitchen', 'kitchen', 'alarm_triggered', 1, 'unlock_door', 'FRONT_DOOR', '{"reason": "emergency_evacuation"}', true, 1),
     ('厨房烟雾报警-关闭空调', 'smoke_kitchen', 'kitchen', 'alarm_triggered', 1, 'turn_off_ac', 'ac_kitchen', '{"prevent_smoke_spread": true}', true, 2),
-    ('客厅烟雾报警-打开照明', 'smoke_living', 'living', 'alarm_triggered', 1, 'turn_on_lights', 'light_living', '{"brightness": 100, "reason": "emergency_lighting"}', true, 1);
+    ('客厅烟雾报警-打开照明', 'smoke_living_room', 'living_room', 'alarm_triggered', 1, 'turn_on_lights', 'light_living_room', '{"brightness": 100, "reason": "emergency_lighting"}', true, 1);
 
 -- 插入示例用户通知配置
 INSERT INTO user_notification_config (user_id, username, email, phone, notify_on_alarm, notify_on_low_battery, notification_channels)
@@ -448,21 +469,23 @@ VALUES
 -- 插入初始化事件
 INSERT INTO lighting_events (light_id, event_type, detail)
 VALUES
-    ('light_living', 'INIT', 'Lighting initialized'),
+    ('light_living_room', 'INIT', 'Lighting initialized'),
     ('light_bedroom1', 'INIT', 'Lighting initialized'),
     ('light_bedroom2', 'INIT', 'Lighting initialized'),
-    ('light_kitchen', 'INIT', 'Lighting initialized');
+    ('light_kitchen', 'INIT', 'Lighting initialized'),
+    ('light_study', 'INIT', 'Lighting initialized');
 INSERT INTO smoke_alarm_events (alarm_id, event_type, smoke_level, detail)
 VALUES
-    ('smoke_living', 'INIT', 0.0, 'Smoke alarm initialized'),
+    ('smoke_living_room', 'INIT', 0.0, 'Smoke alarm initialized'),
     ('smoke_bedroom1', 'INIT', 0.0, 'Smoke alarm initialized'),
     ('smoke_bedroom2', 'INIT', 0.0, 'Smoke alarm initialized'),
-    ('smoke_kitchen', 'INIT', 0.0, 'Smoke alarm initialized');
+    ('smoke_kitchen', 'INIT', 0.0, 'Smoke alarm initialized'),
+    ('smoke_study', 'INIT', 0.0, 'Smoke alarm initialized');
 
 -- 完成提示
 SELECT '✓ Database initialization completed!' AS status;
 SELECT 'Database: smart_home' AS info;
 SELECT 'Tables: temperature_humidity_data, lock_state, lock_events, ac_state, ac_events, lighting_state, lighting_events, smoke_alarm_state, smoke_alarm_events' AS info;
-SELECT 'Rooms: living, bedroom1, bedroom2, kitchen' AS info;
-SELECT 'Devices: ac_living, ac_bedroom1, ac_bedroom2, ac_kitchen, light_living, light_bedroom1, light_bedroom2, light_kitchen, smoke_living, smoke_bedroom1, smoke_bedroom2, smoke_kitchen' AS info;
+SELECT 'Rooms: living_room, bedroom1, bedroom2, kitchen, study' AS info;
+SELECT 'Devices: ac_living_room, ac_bedroom1, ac_bedroom2, ac_kitchen, ac_study, light_living_room, light_bedroom1, light_bedroom2, light_kitchen, light_study, smoke_living_room, smoke_bedroom1, smoke_bedroom2, smoke_kitchen, smoke_study' AS info;
 SELECT COUNT(*) || ' test records inserted' AS info FROM temperature_humidity_data;

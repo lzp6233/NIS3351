@@ -38,7 +38,7 @@ def get_all_rooms():
             } for r in rows]
         else:
             stmt = conn.prepare("""
-                SELECT room_id, room_name, floor, area, description, created_at
+                SELECT room_id, room_name::TEXT, floor, area, description::TEXT, created_at
                 FROM rooms
                 ORDER BY floor, room_id
             """)
@@ -98,7 +98,7 @@ def get_room_by_id(room_id):
         else:
             # openGauss implementation
             stmt = conn.prepare("""
-                SELECT room_id, room_name, floor, area, description, created_at
+                SELECT room_id, room_name::TEXT, floor, area, description::TEXT, created_at
                 FROM rooms WHERE room_id = $1
             """)
             rows = stmt(room_id)

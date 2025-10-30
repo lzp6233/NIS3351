@@ -20,11 +20,13 @@ sys.path.insert(0, backend_dir)
 # 从统一的配置文件导入
 from config import MQTT_BROKER, MQTT_PORT, LIGHTING_CHECK_INTERVAL, LIGHTING_BRIGHTNESS_THRESHOLD
 
-# 灯具配置
+# 灯具配置（5个房间，统一命名）
 LIGHTS = {
     "light_living_room": {"device_id": "living_room", "name": "客厅"},
-    "light_bedroom": {"device_id": "bedroom", "name": "卧室"},
-    "light_kitchen": {"device_id": "kitchen", "name": "厨房"}
+    "light_bedroom1": {"device_id": "bedroom1", "name": "主卧"},
+    "light_bedroom2": {"device_id": "bedroom2", "name": "次卧"},
+    "light_kitchen": {"device_id": "kitchen", "name": "厨房"},
+    "light_study": {"device_id": "study", "name": "书房"}
 }
 
 # 全局灯具状态

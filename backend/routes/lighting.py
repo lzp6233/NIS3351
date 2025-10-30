@@ -194,6 +194,7 @@ def auto_adjust_lighting(light_id):
         'bedroom1': 300,
         'bedroom2': 300,
         'kitchen': 500,
+        'study': 400,
     }
     target_lux = target_map.get(device_id, 400)
 

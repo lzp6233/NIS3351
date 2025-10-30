@@ -76,7 +76,7 @@ LIGHTING_BRIGHTNESS_THRESHOLD = float(os.getenv("LIGHTING_BRIGHTNESS_THRESHOLD",
 # 前端静态服务端口
 FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", "8000"))
 
-# 要模拟的温湿度传感器设备列表
+# 要模拟的温湿度传感器设备列表（5个房间）
 SENSORS = [
     {
         "device_id": "living_room",
@@ -85,15 +85,27 @@ SENSORS = [
         "enabled": True
     },
     {
-        "device_id": "bedroom",
-        "location": "卧室",
-        "topic": "home/bedroom/temperature_humidity",
+        "device_id": "bedroom1",
+        "location": "主卧",
+        "topic": "home/bedroom1/temperature_humidity",
+        "enabled": True
+    },
+    {
+        "device_id": "bedroom2",
+        "location": "次卧",
+        "topic": "home/bedroom2/temperature_humidity",
         "enabled": True
     },
     {
         "device_id": "kitchen",
         "location": "厨房",
         "topic": "home/kitchen/temperature_humidity",
+        "enabled": True
+    },
+    {
+        "device_id": "study",
+        "location": "书房",
+        "topic": "home/study/temperature_humidity",
         "enabled": True
     },
 ]

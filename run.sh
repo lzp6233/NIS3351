@@ -105,6 +105,10 @@ echo -e "${GREEN}✓ 门锁模拟器已启动 (PID: $!)${NC}"
 python simulator/smoke_alarm_sim.py &
 echo -e "${GREEN}✓ 烟雾报警器模拟器已启动 (PID: $!)${NC}"
 
+# 启动灯具模拟器
+python simulator/lighting_sim.py &
+echo -e "${GREEN}✓ 灯具模拟器已启动 (PID: $!)${NC}"
+
 # 启动前端服务器（使用配置的端口）
 cd frontend && python3 -m http.server $FRONTEND_PORT &
 echo -e "${GREEN}✓ 前端服务已启动 (PID: $!)${NC}"
