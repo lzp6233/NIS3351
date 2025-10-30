@@ -571,8 +571,8 @@
             const index = allAlarms.findIndex(a => a.alarm_id === data.alarm_id);
             if (index !== -1) {
                 allAlarms[index].smoke_level = data.smoke_level;
-                allAlarms[index].alarm_triggered = data.alarm_active;
-                allAlarms[index].battery_level = data.battery;
+                allAlarms[index].alarm_active = data.alarm_active;
+                allAlarms[index].battery = data.battery;
                 allAlarms[index].test_mode = data.test_mode;
             }
 
@@ -626,7 +626,7 @@
             document.getElementById('max-smoke-level').textContent = `${maxSmoke.toFixed(1)}%`;
 
             // 更新低电量设备数
-            const lowBattery = allAlarms.filter(a => a.battery_level < 20).length;
+            const lowBattery = allAlarms.filter(a => (a.battery || 100) < 20).length;
             document.getElementById('low-battery-count').textContent = lowBattery;
         }
 
@@ -888,7 +888,7 @@
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">电池电量</span>
-                        <span class="metric-value">${alarm.battery_level}%</span>
+                        <span class="metric-value">${alarm.battery || 100}%</span>
                     </div>
                     <div class="health-score">
                         <span>健康度:</span>
@@ -959,8 +959,8 @@
                 score -= 10;
             }
 
-            // 根据低电量设备扣分
-            const lowBatteryCount = allAlarms.filter(a => a.battery_level < 20).length;
+            // 根据低电量设备扣分（使用正确的字段名 battery）
+            const lowBatteryCount = allAlarms.filter(a => (a.battery || 100) < 20).length;
             score -= lowBatteryCount * 5;
 
             return Math.max(0, Math.round(score));
@@ -970,15 +970,16 @@
         function calculateDeviceHealth(alarm, events) {
             let score = 100;
 
-            // 电池电量
-            if (alarm.battery_level < 20) {
+            // 电池电量（使用正确的字段名 battery）
+            const batteryLevel = alarm.battery || 100;
+            if (batteryLevel < 20) {
                 score -= 30;
-            } else if (alarm.battery_level < 50) {
+            } else if (batteryLevel < 50) {
                 score -= 15;
             }
 
-            // 当前烟雾浓度（非报警状态下过高）
-            if (!alarm.alarm_triggered && alarm.smoke_level > 20) {
+            // 当前烟雾浓度（非报警状态下过高，使用正确的字段名 alarm_active）
+            if (!alarm.alarm_active && alarm.smoke_level > 20) {
                 score -= 20;
             }
 

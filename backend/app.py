@@ -26,6 +26,10 @@ from routes.automation_rules import automation_bp
 
 app = Flask(__name__)
 
+# 配置 JSON 响应不转义中文（解决中文乱码问题）
+app.config['JSON_AS_ASCII'] = False
+app.config['JSON_SORT_KEYS'] = False
+
 # 配置 SocketIO（WebSocket实时推送）
 socketio = SocketIO(app,
                     cors_allowed_origins="*",
@@ -53,6 +57,9 @@ def after_request(response):
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Accept,Origin,X-Requested-With'
     response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
     response.headers['Access-Control-Max-Age'] = '0'  # 开发环境禁用缓存
+    # 确保 JSON 响应使用 UTF-8 编码
+    if response.content_type and 'application/json' in response.content_type:
+        response.headers['Content-Type'] = 'application/json; charset=utf-8'
     print(f"[CORS] {request.method} {request.path} - Origin: {request.headers.get('Origin')} - Status: {response.status_code}")
     return response
 

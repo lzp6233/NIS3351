@@ -19,6 +19,7 @@ if parent_dir not in sys.path:
 
 from database_enhanced import (
     get_maintenance_records, add_maintenance_record, get_maintenance_due_devices,
+    get_all_maintenance_records,
     get_all_response_rules, create_response_rule, update_response_rule, delete_response_rule,
     acknowledge_alarm as db_acknowledge_alarm, get_alarm_acknowledgments,
     get_alarm_statistics, update_daily_statistics
@@ -305,6 +306,33 @@ def get_maintenance_due():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@smoke_alarm_bp.route("/maintenance", methods=["GET"])
+def get_all_maintenance():
+    """获取所有设备的维护记录
+
+    查询参数:
+    - limit: 返回记录数量限制 (默认: 100)
+    - alarm_id: 筛选指定设备 (可选)
+    - maintenance_type: 筛选维护类型 (可选)
+    """
+    try:
+        limit = request.args.get('limit', 100, type=int)
+        filter_alarm_id = request.args.get('alarm_id')
+        filter_type = request.args.get('maintenance_type')
+
+        records = get_all_maintenance_records(limit, filter_alarm_id, filter_type)
+        return jsonify({
+            "success": True,
+            "count": len(records),
+            "records": records
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 # ==================== 统计分析 ====================

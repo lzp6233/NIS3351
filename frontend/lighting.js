@@ -6,6 +6,22 @@
 // API 基础URL
 const API_BASE = 'http://localhost:5000';
 
+// 房间固定排序
+const ROOM_ORDER = ['living_room', 'bedroom1', 'bedroom2', 'kitchen', 'study'];
+
+// 排序函数
+function sortByRoomOrder(items, idField = 'device_id') {
+    return items.sort((a, b) => {
+        const indexA = ROOM_ORDER.indexOf(a[idField]);
+        const indexB = ROOM_ORDER.indexOf(b[idField]);
+        // 如果房间不在列表中，放到最后
+        if (indexA === -1 && indexB === -1) return 0;
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+    });
+}
+
 // 灯具数据
 let lights = [];
 let selectedLights = new Set();
@@ -109,7 +125,7 @@ async function loadLights() {
         statusSpan.textContent = '正在加载...';
         const response = await fetch(`${API_BASE}/lighting`);
         if (!response.ok) throw new Error('加载失败');
-        
+
         lights = await response.json();
         // 规范化字段类型，确保 room_brightness 为数字以便渲染到两处
         lights = lights.map(l => {
@@ -119,6 +135,10 @@ async function loadLights() {
                 room_brightness: Number.isFinite(rb) ? rb : l.room_brightness
             };
         });
+
+        // 按固定顺序排序
+        lights = sortByRoomOrder(lights, 'device_id');
+
         renderLights();
         updateLightSelect();
         statusSpan.textContent = `已加载 ${lights.length} 个灯具`;

@@ -30,7 +30,7 @@ def get_connection():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS temperature_humidity_data (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                device_id VARCHAR(50) DEFAULT 'room1',
+                device_id VARCHAR(50) NOT NULL,
                 temperature FLOAT NOT NULL,
                 humidity FLOAT NOT NULL,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -140,6 +140,19 @@ def get_connection():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # 插入初始房间数据（如果不存在）
+        cur.execute("SELECT COUNT(*) FROM rooms")
+        if cur.fetchone()[0] == 0:
+            cur.executemany("""
+                INSERT INTO rooms (room_id, room_name, floor, area, description)
+                VALUES (?, ?, ?, ?, ?)
+            """, [
+                ('living_room', '客厅', 1, 35.5, '主要活动区域'),
+                ('bedroom1', '主卧', 1, 20.0, '主卧室'),
+                ('bedroom2', '次卧', 1, 15.0, '次卧室'),
+                ('kitchen', '厨房', 1, 12.0, '烹饪区域'),
+                ('study', '书房', 1, 18.0, '学习工作空间')
+            ])
         cur.execute("""
             CREATE TABLE IF NOT EXISTS smoke_alarm_state (
                 alarm_id VARCHAR(50) PRIMARY KEY,
@@ -269,8 +282,8 @@ def get_connection():
         conn.commit()
         return conn
 
-    # 构建连接字符串: opengauss://user:password@host:port/database
-    conn_string = f"opengauss://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}"
+    # 构建连接字符串: opengauss://user:password@host:port/database?client_encoding=UTF8
+    conn_string = f"opengauss://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}?client_encoding=UTF8"
     conn = py_opengauss.open(conn_string)
     return conn
 
@@ -349,31 +362,41 @@ def get_recent_data(device_id=None, limit=100):
 
 
 def get_devices():
-    """获取所有设备列表及其数据数量"""
+    """获取所有设备列表及其数据数量，关联房间表获取中文名称"""
     conn = get_connection()
     try:
         result = []
         if DB_TYPE == 'sqlite':
             cur = conn.cursor()
-            cur.execute(
-                "SELECT device_id, COUNT(*) as count FROM temperature_humidity_data GROUP BY device_id"
-            )
+            cur.execute("""
+                SELECT t.device_id, COUNT(*) as count, COALESCE(r.room_name, t.device_id) as room_name
+                FROM temperature_humidity_data t
+                LEFT JOIN rooms r ON t.device_id = r.room_id
+                GROUP BY t.device_id, r.room_name
+                ORDER BY t.device_id
+            """)
             rows = cur.fetchall()
             for row in rows:
                 result.append({
                     "device_id": row[0],
-                    "data_count": row[1]
+                    "data_count": row[1],
+                    "room_name": row[2]
                 })
             return result
 
-        stmt = conn.prepare(
-            "SELECT device_id, COUNT(*) as count FROM temperature_humidity_data GROUP BY device_id"
-        )
+        stmt = conn.prepare("""
+            SELECT t.device_id, COUNT(*) as count, COALESCE(r.room_name, t.device_id) as room_name
+            FROM temperature_humidity_data t
+            LEFT JOIN rooms r ON t.device_id = r.room_id
+            GROUP BY t.device_id, r.room_name
+            ORDER BY t.device_id
+        """)
         rows = stmt()
         for row in rows:
             result.append({
                 "device_id": row[0],
-                "data_count": row[1]
+                "data_count": row[1],
+                "room_name": row[2]
             })
         return result
     finally:

@@ -5,6 +5,22 @@ const API_BASE = 'http://localhost:5000';
 const chart = echarts.init(document.getElementById('chart'));
 let currentDevice = 'all';
 
+// 房间固定排序
+const ROOM_ORDER = ['living_room', 'bedroom1', 'bedroom2', 'kitchen', 'study'];
+
+// 排序函数
+function sortByRoomOrder(items, idField = 'device_id') {
+    return items.sort((a, b) => {
+        const indexA = ROOM_ORDER.indexOf(a[idField]);
+        const indexB = ROOM_ORDER.indexOf(b[idField]);
+        // 如果房间不在列表中，放到最后
+        if (indexA === -1 && indexB === -1) return 0;
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+    });
+}
+
 // 图表配置
 const option = {
     title: { 
@@ -19,7 +35,7 @@ const option = {
     },
     legend: {
         data: ['温度', '湿度'],
-        top: 30
+        top: 50
     },
     grid: {
         left: '3%',
@@ -81,7 +97,7 @@ async function loadDevices() {
     try {
         console.log('正在请求设备列表:', `${API_BASE}/devices`);
         console.log('当前页面 Origin:', window.location.origin);
-        
+
         // 添加详细的请求配置和调试信息
         const requestOptions = {
             method: 'GET',
@@ -92,36 +108,41 @@ async function loadDevices() {
             mode: 'cors', // 明确指定 CORS 模式
             credentials: 'omit' // 不发送凭据
         };
-        
+
         console.log('请求配置:', requestOptions);
         // 添加时间戳避免缓存
         const url = `${API_BASE}/devices?_t=${Date.now()}`;
         const response = await fetch(url, requestOptions);
         console.log('响应状态:', response.status, response.statusText);
         console.log('响应头:', [...response.headers.entries()]);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const devices = await response.json();
         console.log('获取到设备数据:', devices);
-        
+
+        // 按固定顺序排序
+        const sortedDevices = sortByRoomOrder(devices, 'device_id');
+
         const select = document.getElementById('deviceSelect');
         select.innerHTML = '';  // 清空选项
-        
-        devices.forEach(device => {
+
+        sortedDevices.forEach(device => {
             const option = document.createElement('option');
             option.value = device.device_id;
-            option.textContent = `${device.device_id} (${device.data_count} 条数据)`;
+            // 优先显示中文房间名，如果没有则显示device_id
+            const displayName = device.room_name || device.device_id;
+            option.textContent = `${displayName} (${device.data_count} 条数据)`;
             select.appendChild(option);
         });
-        
+
         // 默认选择第一个设备
-        if (devices.length > 0) {
-            currentDevice = devices[0].device_id;
+        if (sortedDevices.length > 0) {
+            currentDevice = sortedDevices[0].device_id;
         }
-        
+
         updateStatus('设备列表加载成功', 'success');
     } catch (error) {
         console.error('加载设备列表失败:', error);

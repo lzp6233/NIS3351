@@ -38,7 +38,7 @@ def get_all_rooms():
             } for r in rows]
         else:
             stmt = conn.prepare("""
-                SELECT room_id, room_name::TEXT, floor, area, description::TEXT, created_at
+                SELECT room_id, room_name, floor, area, description, created_at
                 FROM rooms
                 ORDER BY floor, room_id
             """)
@@ -98,7 +98,7 @@ def get_room_by_id(room_id):
         else:
             # openGauss implementation
             stmt = conn.prepare("""
-                SELECT room_id, room_name::TEXT, floor, area, description::TEXT, created_at
+                SELECT room_id, room_name, floor, area, description, created_at
                 FROM rooms WHERE room_id = $1
             """)
             rows = stmt(room_id)
@@ -468,6 +468,96 @@ def get_maintenance_due_devices(days_ahead=30):
                     'device_model': r[3],
                     'next_maintenance_date': r[4].isoformat() if r[4] else None,
                     'maintenance_type': r[5]
+                })
+            return result
+    finally:
+        conn.close()
+
+
+def get_all_maintenance_records(limit=100, filter_alarm_id=None, filter_type=None):
+    """获取所有设备的维护记录
+
+    参数:
+        limit: 返回记录数量限制
+        filter_alarm_id: 筛选指定设备ID (可选)
+        filter_type: 筛选维护类型 (可选)
+    """
+    conn = get_connection()
+    try:
+        if DB_TYPE == 'sqlite':
+            cur = conn.cursor()
+
+            # 构建 SQL 查询
+            sql = """
+                SELECT id, alarm_id, maintenance_type, performed_by,
+                       maintenance_date, next_maintenance_date, notes, cost
+                FROM device_maintenance
+                WHERE 1=1
+            """
+            params = []
+
+            if filter_alarm_id:
+                sql += " AND alarm_id = ?"
+                params.append(filter_alarm_id)
+
+            if filter_type:
+                sql += " AND maintenance_type = ?"
+                params.append(filter_type)
+
+            sql += " ORDER BY maintenance_date DESC LIMIT ?"
+            params.append(limit)
+
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall()
+
+            return [{
+                'id': r[0],
+                'alarm_id': r[1],
+                'maintenance_type': r[2],
+                'performed_by': r[3],
+                'maintenance_date': r[4],
+                'next_maintenance_date': r[5],
+                'notes': r[6],
+                'cost': float(r[7]) if r[7] else 0.0
+            } for r in rows]
+        else:
+            # openGauss
+            sql = """
+                SELECT id, alarm_id, maintenance_type, performed_by,
+                       maintenance_date, next_maintenance_date, notes, cost
+                FROM device_maintenance
+                WHERE 1=1
+            """
+            params = []
+            param_count = 1
+
+            if filter_alarm_id:
+                sql += f" AND alarm_id = ${param_count}"
+                params.append(filter_alarm_id)
+                param_count += 1
+
+            if filter_type:
+                sql += f" AND maintenance_type = ${param_count}"
+                params.append(filter_type)
+                param_count += 1
+
+            sql += f" ORDER BY maintenance_date DESC LIMIT ${param_count}"
+            params.append(limit)
+
+            stmt = conn.prepare(sql)
+            rows = stmt(*params)
+
+            result = []
+            for r in rows:
+                result.append({
+                    'id': r[0],
+                    'alarm_id': r[1],
+                    'maintenance_type': r[2],
+                    'performed_by': r[3],
+                    'maintenance_date': r[4].isoformat() if hasattr(r[4], 'isoformat') else str(r[4]),
+                    'next_maintenance_date': r[5].isoformat() if r[5] and hasattr(r[5], 'isoformat') else (str(r[5]) if r[5] else None),
+                    'notes': r[6],
+                    'cost': float(r[7]) if r[7] else 0.0
                 })
             return result
     finally:

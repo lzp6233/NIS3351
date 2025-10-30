@@ -2,11 +2,30 @@
 const API_BASE = 'http://localhost:5000';
 let selectedAlarmId = null;
 
+// 房间固定排序
+const ROOM_ORDER = ['living_room', 'bedroom1', 'bedroom2', 'kitchen', 'study'];
+
+// 排序函数
+function sortByRoomOrder(items, idField = 'location') {
+    return items.sort((a, b) => {
+        const indexA = ROOM_ORDER.indexOf(a[idField]);
+        const indexB = ROOM_ORDER.indexOf(b[idField]);
+        // 如果房间不在列表中，放到最后
+        if (indexA === -1 && indexB === -1) return 0;
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+    });
+}
+
 // 加载所有烟雾报警器
 async function loadAlarms() {
     try {
         const response = await fetch(`${API_BASE}/smoke_alarms`);
         const alarms = await response.json();
+
+        // 按固定顺序排序
+        const sortedAlarms = sortByRoomOrder(alarms, 'location');
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('alarms-grid').style.display = 'grid';
@@ -14,13 +33,13 @@ async function loadAlarms() {
         const grid = document.getElementById('alarms-grid');
         grid.innerHTML = '';
 
-        alarms.forEach(alarm => {
+        sortedAlarms.forEach(alarm => {
             const card = createAlarmCard(alarm);
             grid.appendChild(card);
         });
 
-        if (alarms.length > 0 && !selectedAlarmId) {
-            selectedAlarmId = alarms[0].alarm_id;
+        if (sortedAlarms.length > 0 && !selectedAlarmId) {
+            selectedAlarmId = sortedAlarms[0].alarm_id;
             loadEvents(selectedAlarmId);
         }
     } catch (error) {
@@ -40,7 +59,10 @@ function createAlarmCard(alarm) {
     const locationNames = {
         'living_room': '客厅',
         'bedroom': '卧室',
-        'kitchen': '厨房'
+        'bedroom1': '主卧',
+        'bedroom2': '次卧',
+        'kitchen': '厨房',
+        'study': '书房'
     };
 
     const statusClass = alarm.alarm_active ? 'status-danger' :
